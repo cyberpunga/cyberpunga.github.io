@@ -32,5 +32,7 @@ Reveal.addEventListener( 'slidechanged', function( event ) {
 Reveal.addEventListener( 'fin', function() {
     console.log('soy el fin.');
 }, false );
+/*
 var indices = Reveal.getIndices( document.getElementById( 'sectionID' ) );
 Reveal.slide( indices.h, indices.v );
+*/

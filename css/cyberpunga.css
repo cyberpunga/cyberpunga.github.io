@@ -10,8 +10,14 @@ body {
 */ }
 
 .highlight {
-  color: #ffff00;
-}
+  color: #ffff00; }
+
+.reveal h1 {
+  cursor: pointer; }
+
+.reveal .logo {
+  cursor: pointer; }
+
 .reveal, .reveal p, .reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
   color: #ffffff;
 	text-shadow: -2px 0px #000, 0px 2px #000, 2px 0px #000, 0px -2px #000;
@@ -22,10 +28,13 @@ body {
   -moz-transition: color 0.5s ease;
   transition: color 0.5s ease; }
 
-.reveal img, .reveal video, .reveal iframe {
+.reveal section img, .reveal img, .reveal video, .reveal iframe {
   max-width: none;
   max-height: none;
-  top: 10px; }
+  top: 10px;
+  background: none;
+  box-shadow: none;
+  border: none; }
 
 #header {
   position: absolute;
@@ -35,21 +44,36 @@ body {
   -webkit-transition: all 0.5s ease;
   -moz-transition: all 0.5s ease;
   transition: all 0.5s ease;
-  z-index: 1000;
-}
-.post-title p {
-    z-index: 1000; }
-/*
-.reveal .slides {
-  text-align: left; }
-*/
-#subtitle {
-    margin: -20px 0px 20px; }
+  z-index: 1000; }
 
-.post-title, .title {
-    cursor: pointer; }
+#next {
+/*  position: absolute;
+  right: 10px;
+  top: 50%;
+  z-index: 10000; */}
+
+#next i {
+    width: 1.5em;
+    height: 1.5em;
+    border-radius: 100%;
+    border: solid 4px #ffffff;
+    line-height: 1.45em;
+    overflow: hidden;
+    text-align: center;
+    z-index: 10000; }
 
 .post-title {
+    z-index: 1000; }
+
+.reveal .slides {
+/*
+  text-align: left;
+*/ }
+
+#tagline {
+    margin: -20px 0px 20px; }
+
+#postid {
   display: inline-flex;
   float: right; }
 
@@ -92,21 +116,22 @@ body {
 
 .reveal h1:hover {
   color: #ffff00;
-  -webkit-transition: color 0.5s ease;
-  -moz-transition: color 0.5s ease;
-  transition: color 0.5s ease; }
+  -webkit-transition: all 0.5s ease;
+  -moz-transition: all 0.5s ease;
+  transition: all 0.5s ease; }
 
 .reveal a {
   color: #ffffff;
-  -webkit-transition: color 0.5s ease;
-  -moz-transition: color 0.5s ease;
-  transition: color 0.5s ease; }
+  -webkit-transition: all 0.5s ease;
+  -moz-transition: all 0.5s ease;
+  transition: all 0.5s ease; }
 
 .reveal a:hover {
   color: #ffff00;
-  -webkit-transition: color 0.5s ease;
-  -moz-transition: color 0.5s ease;
-  transition: color 0.5s ease; }
+  -webkit-transition: all 0.5s ease;
+  -moz-transition: all 0.5s ease;
+  transition: all 0.5s ease;
+  text-shadow: -2px 0px #000, 0px 2px #000, 2px 0px #000, 0px -2px #000; }
 
 .social-icons i {
   text-shadow: -2px 0px #000, 0px 2px #000, 2px 0px #000, 0px -2px #000;
