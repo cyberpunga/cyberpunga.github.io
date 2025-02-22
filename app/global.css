@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 ::selection {
-  background-color: #47a3f3;
+  background-color: #e02518;
   color: #fefefe;
 }
 
@@ -31,6 +31,7 @@
 
 html {
   min-width: 360px;
+  scroll-behavior: smooth;
 }
 
 .prose .anchor {

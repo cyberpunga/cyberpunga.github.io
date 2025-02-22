@@ -15,7 +15,7 @@ function ArrowIcon() {
 export default function Footer() {
   const glitch = useGlitch({ playMode: "hover" });
   return (
-    <footer className="mt-auto mb-16">
+    <footer className="mt-auto mb-16 pb-4">
       <ul className="font-sm mt-8 flex flex-col space-x-0 space-y-2 text-neutral-600 md:flex-row md:space-x-4 md:space-y-0 dark:text-neutral-300">
         <li>
           <div ref={glitch.ref}>
