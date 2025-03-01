@@ -1,3 +1,5 @@
+import { readdir } from "fs/promises";
+
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const slug = (await params).slug;
   const { default: Post } = await import(`@/content/${slug}/page.mdx`);
@@ -6,7 +8,13 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 }
 
 export async function generateStaticParams() {
-  return [{ slug: "some-other-example" }, { slug: "some" }, { slug: "example-markdown-post" }];
+  const slugs = await getSlugs();
+  return slugs;
+}
+
+async function getSlugs() {
+  const posts = await readdir("./content", { withFileTypes: true });
+  return posts.filter((post) => post.isDirectory()).map((post) => ({ slug: post.name }));
 }
 
 export const dynamicParams = false;
