@@ -8,7 +8,6 @@ import slugify from "@sindresorhus/slugify";
 
 export default async function Page({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
-  console.log(slug);
   if (slug && slug.length) {
     const { default: Post, frontmatter } = await import(`@/content/${slug.join("")}/page.mdx`);
     if (!frontmatter) {
@@ -17,7 +16,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string[
     return (
       <article className="prose dark:prose-invert lg:prose-xl mx-auto font-[family-name:var(--font-space-grotesk)]">
         <span>{frontmatter.date}</span>
-        <h1>{frontmatter.title}</h1>
+        <h1 className="mt-8!">{frontmatter.title}</h1>
         <p>{frontmatter.description}</p>
         <Tags tags={frontmatter.tags} />
         <Post />
@@ -60,10 +59,7 @@ async function BlogPosts() {
               "flex flex-col"
             )}
           >
-            <div>
-              <span className="text-xs">{post.date}</span>{" "}
-              <Link href={`/blog/${post.slug.join("")}`}>{post.title}</Link>
-            </div>
+            <span className="text-xs">{post.date}</span> <Link href={`/blog/${post.slug.join("")}`}>{post.title}</Link>
             <Tags tags={post.tags} />
           </article>
         </li>
@@ -72,27 +68,27 @@ async function BlogPosts() {
   );
 }
 
-export async function generateMetadata(
-  { params, searchParams }: { params: { slug: string[] }; searchParams: URLSearchParams },
-  parent: ResolvingMetadata
-): Promise<Metadata> {
-  // read route params
-  const id = (await params).slug;
-  console.log(id);
+// export async function generateMetadata(
+//   { params, searchParams }: { params: { slug: string[] }; searchParams: URLSearchParams },
+//   parent: ResolvingMetadata
+// ): Promise<Metadata> {
+//   // read route params
+//   const id = (await params).slug;
+//   console.log(id);
 
-  // fetch data
-  // const   product = await fetch(`https://.../${id}`).then((res) => res.json());
+//   // fetch data
+//   // const   product = await fetch(`https://.../${id}`).then((res) => res.json());
 
-  // optionally access and extend (rather than replace) parent metadata
-  // const previousImages = (await parent).openGraph?.images || [];
+//   // optionally access and extend (rather than replace) parent metadata
+//   // const previousImages = (await parent).openGraph?.images || [];
 
-  return {
-    title: "HOLA", // product.title,
-    openGraph: {
-      // images: ["/some-specific-page-image.jpg", ...previousImages],
-    },
-  };
-}
+//   return {
+//     title: "HOLA", // product.title,
+//     openGraph: {
+//       // images: ["/some-specific-page-image.jpg", ...previousImages],
+//     },
+//   };
+// }
 
 export async function generateStaticParams() {
   const slugs = await getSlugs();
