@@ -9,9 +9,10 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
     img: (props) => (
       <Image
         {...props}
+        style={{ width: "100%" }} //
         unoptimized
         alt={props.alt}
-        className={cn(badgeVariants({ variant: "outline" }), "object-cover p-0 mx-8")}
+        className={cn(badgeVariants({ variant: "outline" }), "object-cover p-0 lg:mx-8 not-prose")}
       />
     ),
   };
