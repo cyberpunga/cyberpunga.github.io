@@ -4,7 +4,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const slug = (await params).slug;
   const { default: Post } = await import(`@/content/${slug}/page.mdx`);
 
-  return <Post />;
+  return (
+    <article className="prose lg:prose-xl mx-auto">
+      <Post />
+    </article>
+  );
 }
 
 export async function generateStaticParams() {
