@@ -17,6 +17,8 @@ const LocalizationContext = createContext<LocalizationContextType | undefined>(u
 // Import all translations
 import { translations } from "@/localization/translations";
 
+type TranslationKeys = Record<string, any> // Allow indexing with strings
+
 export function LocalizationProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>("en");
 
@@ -24,16 +26,16 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
   const t = useCallback(
     (key: string): string => {
       const keys = key.split(".");
-      let result: any = translations[language];
+      let result: TranslationKeys = translations[language] as TranslationKeys;
 
       for (const k of keys) {
-        if (result && result[k]) {
+        if (result && typeof result === "object" && k in result) {
           result = result[k];
         } else {
           // Fallback to English if translation is missing
-          let fallback = translations["en"];
+          let fallback: TranslationKeys = translations["en"] as TranslationKeys;
           for (const fk of keys) {
-            if (fallback && fallback[fk]) {
+            if (fallback && typeof fallback === "object" && fk in fallback) {
               fallback = fallback[fk];
             } else {
               return key; // Return the key if no translation found
