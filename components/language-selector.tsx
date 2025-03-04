@@ -17,7 +17,7 @@ export function LanguageSelector() {
   const { language, setLanguage } = useLocalization()
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
           <Globe className="h-4 w-4" />

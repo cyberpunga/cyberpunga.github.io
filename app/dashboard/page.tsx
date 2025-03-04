@@ -116,7 +116,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col absolute top-0 left-0 right-0 bottom-0">
+    <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b px-4 backdrop-blur-sm sm:px-6">
         <div className="flex items-center gap-2 font-semibold text-lg">
           <Brain className="h-6 w-6 text-red-500" />
@@ -154,7 +154,7 @@ function DashboardContent() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">{t("header.title")}</h1>
             <div className="flex items-center gap-2">
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
                     <Calendar className="h-3.5 w-3.5" />
