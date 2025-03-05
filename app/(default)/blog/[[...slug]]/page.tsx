@@ -14,16 +14,26 @@ export default async function Page({ params }: { params: Promise<{ slug: string[
       notFound();
     }
     return (
-      <article className="prose dark:prose-invert lg:prose-xl mx-auto font-[family-name:var(--font-space-grotesk)]">
-        <span>{frontmatter.date}</span>
-        <h1 className="mt-8!">{frontmatter.title}</h1>
-        <p>{frontmatter.description}</p>
+      <article className="py-24 flex flex-col">
+        <PostHeader title={frontmatter.title} date={frontmatter.date} description={frontmatter.description} />
         <Tags tags={frontmatter.tags} />
         <Post />
       </article>
     );
   }
   return <BlogPosts />;
+}
+
+function PostHeader({ title, date, description }: { title: string; date: string; description: string }) {
+  return (
+    <div>
+      <Link className="no-underline" href={`/blog/${slugify(title)}`}>
+        <h1 className="relative mb-0!">{title}</h1>
+      </Link>
+      <span className="text-xs top-full right-1/2 bg-accent my-0! rounded-sm py-0 px-1">{date}</span>
+      <p>{description}</p>
+    </div>
+  );
 }
 
 function Tags({ tags }: { tags: string[] }) {
@@ -50,21 +60,14 @@ async function BlogPosts() {
     })
   );
   return (
-    <ul className="flex flex-col gap-8">
+    <div className="py-24 flex flex-col gap-24">
       {posts.map((post) => (
-        <li key={post.slug.join("")}>
-          <article
-            className={cn(
-              "prose dark:prose-invert lg:prose-xl font-[family-name:var(--font-space-grotesk)]",
-              "flex flex-col"
-            )}
-          >
-            <span className="text-xs">{post.date}</span> <Link href={`/blog/${post.slug.join("")}`}>{post.title}</Link>
-            <Tags tags={post.tags} />
-          </article>
-        </li>
+        <article key={post.slug.join("")}>
+          <PostHeader title={post.title} date={post.date} description={post.description} />
+          <Tags tags={post.tags} />
+        </article>
       ))}
-    </ul>
+    </div>
   );
 }
 

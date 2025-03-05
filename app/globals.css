@@ -125,3 +125,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+a:hover {
+  h1 {
+    @apply text-accent!;
+  }
+}

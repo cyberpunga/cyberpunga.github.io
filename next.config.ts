@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import rehypeMdxImportMedia from "rehype-mdx-import-media";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkMdxFrontmatter from "remark-mdx-frontmatter";
+import rehypeUnwrapImages from "rehype-unwrap-images";
 
 const nextConfig: NextConfig = {
   // Configure `pageExtensions` to include markdown and MDX files
@@ -16,7 +17,7 @@ const withMDX = createMDX({
   // Add markdown plugins here, as desired
   options: {
     remarkPlugins: [remarkGfm, remarkFrontmatter, remarkMdxFrontmatter],
-    rehypePlugins: [rehypeMdxImportMedia],
+    rehypePlugins: [rehypeUnwrapImages, rehypeMdxImportMedia],
   },
 });
 
