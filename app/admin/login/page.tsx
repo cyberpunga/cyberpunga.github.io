@@ -1,51 +1,54 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, Mail, AlertCircle, CheckCircle } from "lucide-react";
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Loader2, Mail, AlertCircle, CheckCircle } from "lucide-react"
+import { toast } from "sonner"
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const router = useRouter()
+  const [email, setEmail] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [magicLinkSent, setMagicLinkSent] = useState(false)
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession()
       if (data.session) {
-        router.push("/admin/posts");
+        router.push("/admin/posts")
       } else {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
-    checkAuth();
+    checkAuth()
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        router.push("/admin/posts");
+        router.push("/admin/posts")
       }
-    });
+    })
 
     return () => {
-      subscription.unsubscribe();
-    };
-  }, [router]);
+      subscription.unsubscribe()
+    }
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
+    e.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
 
     try {
       const { error } = await supabase.auth.signInWithOtp({
@@ -53,26 +56,29 @@ export default function LoginPage() {
         options: {
           emailRedirectTo: `${window.location.origin}/admin/posts`,
         },
-      });
+      })
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(error.message)
       }
 
-      setMagicLinkSent(true);
+      setMagicLinkSent(true)
+      toast.success("Enlace mágico enviado a tu correo")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al enviar el enlace mágico");
+      const errorMessage = err instanceof Error ? err.message : "Error al enviar el enlace mágico"
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-100px)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
-    );
+    )
   }
 
   return (
@@ -98,8 +104,8 @@ export default function LoginPage() {
                   variant="outline"
                   className="mt-4"
                   onClick={() => {
-                    setMagicLinkSent(false);
-                    setEmail("");
+                    setMagicLinkSent(false)
+                    setEmail("")
                   }}
                 >
                   Volver
@@ -151,5 +157,6 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
-  );
+  )
 }
+

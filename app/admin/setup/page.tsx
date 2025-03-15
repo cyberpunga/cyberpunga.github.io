@@ -1,14 +1,14 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, CheckCircle } from "lucide-react";
-import Link from "next/link";
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AlertCircle, CheckCircle } from "lucide-react"
+import Link from "next/link"
 
 export default function SetupPage() {
-  const [activeTab, setActiveTab] = useState("start");
+  const [activeTab, setActiveTab] = useState("start")
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -50,7 +50,7 @@ export default function SetupPage() {
                         </a>{" "}
                         y crea una cuenta o inicia sesión
                       </li>
-                      <li>{'Haz clic en "New Project" y sigue las instrucciones'}</li>
+                      <li>Haz clic en "New Project" y sigue las instrucciones</li>
                       <li>Anota la URL del proyecto y la clave anónima (API key)</li>
                     </ol>
                   </li>
@@ -112,7 +112,7 @@ export default function SetupPage() {
                           Asegúrate de que <strong>Email</strong> está habilitado
                         </li>
                         <li>
-                          Activa la opción <strong>{"Enable magic links"}</strong>
+                          Activa la opción <strong>"Enable magic links"</strong>
                         </li>
                         <li>Guarda los cambios</li>
                       </ol>
@@ -254,7 +254,7 @@ CREATE POLICY "Users can read their own posts"
                     </li>
                     <li>Copia y pega el código SQL anterior</li>
                     <li>
-                      Haz clic en <strong>{"Run"}</strong> para ejecutar el SQL
+                      Haz clic en <strong>"Run"</strong> para ejecutar el SQL
                     </li>
                   </ol>
 
@@ -263,7 +263,7 @@ CREATE POLICY "Users can read their own posts"
                     <div>
                       <p className="font-medium">Importante</p>
                       <p className="text-sm">
-                        Este SQL crea la tabla {"posts"} con las políticas de seguridad necesarias para que cada usuario
+                        Este SQL crea la tabla 'posts' con las políticas de seguridad necesarias para que cada usuario
                         solo pueda ver y editar sus propios posts.
                       </p>
                     </div>
@@ -281,5 +281,6 @@ CREATE POLICY "Users can read their own posts"
         </Tabs>
       </div>
     </div>
-  );
+  )
 }
+
