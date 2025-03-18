@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 346.8 77.2% 49.8%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 20 14.3% 4.1%;
+    --foreground: 0 0% 95%;
+    --card: 24 9.8% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 346.8 77.2% 49.8%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 12 6.5% 15.1%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 346.8 77.2% 49.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-orbitron;
+  }
+}
+
+.prose {
+  @apply max-w-none;
+}
+
+.prose a {
+  @apply text-primary hover:text-primary/80 transition-colors;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply font-orbitron font-bold scroll-m-20;
+}
+
+.prose h1 {
+  @apply text-3xl lg:text-4xl mb-6 mt-12 first:mt-0;
+}
+
+.prose h2 {
+  @apply text-2xl lg:text-3xl mb-4 mt-10 first:mt-0;
+}
+
+.prose h3 {
+  @apply text-xl lg:text-2xl mb-3 mt-8 first:mt-0;
+}
+
+.prose p {
+  @apply mb-4 leading-7;
+}
+
+.prose ul,
+.prose ol {
+  @apply my-6 ml-6;
+}
+
+.prose ul {
+  @apply list-disc;
+}
+
+.prose ol {
+  @apply list-decimal;
+}
+
+.prose li {
+  @apply mb-2;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-muted pl-4 italic my-6;
+}
+
+.prose img {
+  @apply rounded-md my-8 mx-auto;
+}
+
+.prose pre {
+  @apply bg-muted p-4 rounded-md overflow-x-auto my-6;
+}
+
+.prose code {
+  @apply bg-muted px-1 py-0.5 rounded text-sm;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0 text-sm;
+}
+
