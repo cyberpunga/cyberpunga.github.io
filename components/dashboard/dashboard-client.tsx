@@ -63,23 +63,17 @@ export default function DashboardClient() {
     return null;
   }
 
+  console.log("Current pathname:", pathname); // Add this for debugging
+
   // Extract the path parts after /dashboard/
   const pathParts = pathname.split("/").slice(2);
   const section = pathParts[0] || "";
   const action = pathParts[1] || "";
   const id = pathParts[2] || "";
 
-  // Render the appropriate component based on the path
-  if (section === "posts") {
-    if (action === "new") {
-      return <NewPost user={user} />;
-    }
-    if (action === "edit" && id) {
-      return <PostEditor user={user} postId={id} />;
-    }
-    return <PostsList user={user} />;
-  }
+  console.log("Path parts:", { section, action, id }); // Add this for debugging
 
+  // Render the appropriate component based on the path
   if (section === "profile") {
     if (action === "new") {
       return <NewProfile user={user} />;
@@ -88,6 +82,16 @@ export default function DashboardClient() {
       return <ProfileEditor user={user} profileId={id} />;
     }
     return <ProfileView user={user} />;
+  }
+
+  if (section === "posts") {
+    if (action === "new") {
+      return <NewPost user={user} />;
+    }
+    if (action === "edit" && id) {
+      return <PostEditor user={user} postId={id} />;
+    }
+    return <PostsList user={user} />;
   }
 
   // Default to dashboard home
