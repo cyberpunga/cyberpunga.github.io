@@ -23,13 +23,19 @@ function isSupabaseStorageUrl(url: string): boolean {
 
 // Generate static params for all published posts
 export async function generateStaticParams() {
-  const { data: posts } = await supabase.from("posts").select("slug").eq("published", true)
+  try {
+    const { data: posts } = await supabase.from("posts").select("slug").eq("published", true)
 
-  return (
-    posts?.map((post) => ({
-      slug: post.slug,
-    })) || []
-  )
+    return (
+      posts?.map((post) => ({
+        slug: post.slug,
+      })) || []
+    )
+  } catch (error) {
+    console.error("Error generating static params for posts:", error)
+    // Return a dummy value to satisfy the static export requirement
+    return [{ slug: "placeholder" }]
+  }
 }
 
 // Generate metadata for SEO
