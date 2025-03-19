@@ -1,27 +1,30 @@
-import Image from "next/image"
-import Link from "next/link"
-import { notFound } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { downloadImage, ensureImageDirectory } from "@/lib/image-processor"
-import { renderMarkdown } from "@/lib/markdown"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Globe } from "lucide-react"
+import Image from "next/image";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { downloadImage, ensureImageDirectory } from "@/lib/image-processor";
+import { renderMarkdown } from "@/lib/markdown";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExternalLink, Globe } from "lucide-react";
 
 export async function generateStaticParams() {
   try {
-    const { data: authors } = await supabase.from("authors").select("slug").eq("published", true)
-
+    const { data: authors } = await supabase.from("authors").select("slug").eq("published", true);
+    console.log(JSON.stringify({ authors }, null, 2));
+    if (authors?.length === 0) {
+      return [{ slug: "placeholder" }];
+    }
     return (
       authors?.map((author) => ({
         slug: author.slug,
-      })) || []
-    )
+      })) || [{ slug: "placeholder" }]
+    );
   } catch (error) {
-    console.error("Error generating static params for authors:", error)
+    console.error("Error generating static params for authors:", error);
     // Return a dummy value to satisfy the static export requirement
-    return [{ slug: "placeholder" }]
+    return [{ slug: "placeholder" }];
   }
 }
 
@@ -30,15 +33,15 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     .from("authors")
     .select("name, description, profile_picture")
     .eq("slug", params.slug)
-    .eq("published", true)
+    .eq("published", true);
 
-  const author = authors?.[0]
+  const author = authors?.[0];
 
   if (!author) {
     return {
       title: "Author Not Found",
       description: "The requested author could not be found",
-    }
+    };
   }
 
   return {
@@ -49,37 +52,37 @@ export async function generateMetadata({ params }: { params: { slug: string } })
           images: [{ url: author.profile_picture }],
         }
       : undefined,
-  }
+  };
 }
 
-export default async function AuthorPage({ params }: { params: { slug: string } }) {
+export default async function AuthorPage({ params }: { params: Promise<{ slug: string }> }) {
   // Ensure image directory exists (only in Node.js environment)
   if (typeof window === "undefined") {
-    ensureImageDirectory()
+    ensureImageDirectory();
   }
-
+  console.log("XXXXXXXXXX", JSON.stringify({ XXX: await params }, null, 2));
   // Fetch the author
   const { data: authors, error: authorsError } = await supabase
     .from("authors")
     .select("*")
-    .eq("slug", params.slug)
-    .eq("published", true)
+    .eq("slug", (await params).slug)
+    .eq("published", true);
 
   if (authorsError || !authors || authors.length === 0) {
-    notFound()
+    notFound();
   }
 
-  const author = authors[0]
+  const author = authors[0];
 
   // Process profile picture if it exists
   if (author.profile_picture && typeof window === "undefined") {
-    author.profile_picture = (await downloadImage(author.profile_picture)) || author.profile_picture
+    author.profile_picture = (await downloadImage(author.profile_picture)) || author.profile_picture;
   }
 
   // Process bio if it exists
-  let bioHtml = null
+  let bioHtml = null;
   if (author.bio) {
-    bioHtml = await renderMarkdown(author.bio)
+    bioHtml = await renderMarkdown(author.bio);
   }
 
   // Fetch author's posts
@@ -88,17 +91,17 @@ export default async function AuthorPage({ params }: { params: { slug: string } 
     .select("*")
     .eq("author_id", author.id)
     .eq("published", true)
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
   // Process post cover images
   const processedPosts = await Promise.all(
     (posts || []).map(async (post) => {
       if (post.cover_image && typeof window === "undefined") {
-        post.cover_image = (await downloadImage(post.cover_image)) || post.cover_image
+        post.cover_image = (await downloadImage(post.cover_image)) || post.cover_image;
       }
-      return post
-    }),
-  )
+      return post;
+    })
+  );
 
   return (
     <div className="space-y-12">
@@ -191,6 +194,5 @@ export default async function AuthorPage({ params }: { params: { slug: string } 
         )}
       </div>
     </div>
-  )
+  );
 }
-
