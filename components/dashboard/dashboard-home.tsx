@@ -1,17 +1,17 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
-import type { Author, Post } from "@/types/supabase"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Edit, Plus, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
+import type { Author, Post } from "@/types/supabase";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Edit, Plus, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,33 +22,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 
-export default function Dashboard() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [author, setAuthor] = useState<Author | null>(null)
-  const [posts, setPosts] = useState<Post[]>([])
-  const [loading, setLoading] = useState(true)
+interface DashboardHomeProps {
+  user: User;
+}
+
+export default function DashboardHome({ user }: DashboardHomeProps) {
+  const router = useRouter();
+  const [author, setAuthor] = useState<Author | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function getUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.push("/login")
-        return
-      }
-
-      setUser(session.user)
-
+    async function fetchData() {
       try {
         // Check if user has an author profile
-        const { data: authorData } = await supabase.from("authors").select("*").eq("user_id", session.user.id).single()
+        const { data: authorData } = await supabase.from("authors").select("*").eq("user_id", user.id).single();
 
-        setAuthor(authorData)
+        setAuthor(authorData);
 
         if (authorData) {
           // Fetch user's posts
@@ -56,36 +48,36 @@ export default function Dashboard() {
             .from("posts")
             .select("*")
             .eq("author_id", authorData.id)
-            .order("created_at", { ascending: false })
+            .order("created_at", { ascending: false });
 
-          setPosts(postsData || [])
+          setPosts(postsData || []);
         }
       } catch (error) {
-        console.error("Error fetching user data:", error)
+        console.error("Error fetching user data:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    getUser()
-  }, [router])
+    fetchData();
+  }, [user]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-  }
+    await supabase.auth.signOut();
+    router.push("/");
+  };
 
   const handleDeletePost = async (postId: string) => {
     try {
-      const { error } = await supabase.from("posts").delete().eq("id", postId)
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
 
-      if (error) throw error
+      if (error) throw error;
 
-      setPosts(posts.filter((post) => post.id !== postId))
+      setPosts(posts.filter((post) => post.id !== postId));
     } catch (error) {
-      console.error("Error deleting post:", error)
+      console.error("Error deleting post:", error);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -96,7 +88,7 @@ export default function Dashboard() {
         </div>
         <Skeleton className="h-[500px] w-full" />
       </div>
-    )
+    );
   }
 
   return (
@@ -277,6 +269,5 @@ export default function Dashboard() {
         </Tabs>
       )}
     </div>
-  )
+  );
 }
-

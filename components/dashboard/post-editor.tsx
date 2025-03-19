@@ -1,104 +1,96 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
-import type { Post, Author } from "@/types/supabase"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MarkdownRenderer } from "@/components/markdown-renderer"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
+import type { Post, Author } from "@/types/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
-export default function EditPost() {
-  const router = useRouter()
-  const { id } = useParams()
-  const [user, setUser] = useState<User | null>(null)
-  const [author, setAuthor] = useState<Author | null>(null)
-  const [post, setPost] = useState<Post | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface PostEditorProps {
+  user: User;
+  postId: string;
+}
 
-  const [title, setTitle] = useState("")
-  const [slug, setSlug] = useState("")
-  const [content, setContent] = useState("")
-  const [activeTab, setActiveTab] = useState("write")
-  const [excerpt, setExcerpt] = useState("")
-  const [category, setCategory] = useState("")
-  const [coverImage, setCoverImage] = useState("")
-  const [published, setPublished] = useState(false)
+export default function PostEditor({ user, postId }: PostEditorProps) {
+  const router = useRouter();
+  const [author, setAuthor] = useState<Author | null>(null);
+  const [post, setPost] = useState<Post | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [content, setContent] = useState("");
+  const [activeTab, setActiveTab] = useState("write");
+  const [excerpt, setExcerpt] = useState("");
+  const [category, setCategory] = useState("");
+  const [coverImage, setCoverImage] = useState("");
+  const [published, setPublished] = useState(false);
 
   useEffect(() => {
-    async function getUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.push("/login")
-        return
-      }
-
-      setUser(session.user)
-
+    async function fetchData() {
       try {
         // Get user's author profile
         const { data: authorData, error: authorError } = await supabase
           .from("authors")
           .select("*")
-          .eq("user_id", session.user.id)
-          .single()
+          .eq("user_id", user.id)
+          .single();
 
-        if (authorError) throw authorError
+        if (authorError) throw authorError;
 
-        setAuthor(authorData)
+        setAuthor(authorData);
 
         // Get post data
-        const { data: postData, error: postError } = await supabase.from("posts").select("*").eq("id", id).single()
+        const { data: postData, error: postError } = await supabase.from("posts").select("*").eq("id", postId).single();
 
-        if (postError) throw postError
+        if (postError) throw postError;
 
         // Check if user is the author of the post
         if (postData.author_id !== authorData.id) {
-          router.push("/dashboard")
-          return
+          router.push("/dashboard");
+          return;
         }
 
-        setPost(postData)
-        setTitle(postData.title)
-        setSlug(postData.slug)
-        setContent(postData.content)
-        setExcerpt(postData.excerpt || "")
-        setCategory(postData.category || "")
-        setCoverImage(postData.cover_image || "")
-        setPublished(postData.published)
+        setPost(postData);
+        setTitle(postData.title);
+        setSlug(postData.slug);
+        setContent(postData.content);
+        setExcerpt(postData.excerpt || "");
+        setCategory(postData.category || "");
+        setCoverImage(postData.cover_image || "");
+        setPublished(postData.published);
       } catch (error) {
-        console.error("Error fetching data:", error)
-        router.push("/dashboard")
+        console.error("Error fetching data:", error);
+        router.push("/dashboard");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    getUser()
-  }, [router, id])
+    fetchData();
+  }, [user, postId, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!user || !author || !post) return
+    if (!author || !post) return;
 
-    setSubmitting(true)
-    setError(null)
+    setSubmitting(true);
+    setError(null);
 
     try {
       const { error } = await supabase
@@ -113,25 +105,25 @@ export default function EditPost() {
           published,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", post.id)
+        .eq("id", post.id);
 
-      if (error) throw error
+      if (error) throw error;
 
-      router.push("/dashboard")
+      router.push("/dashboard");
     } catch (error: any) {
-      console.error("Error updating post:", error)
-      setError(error.message || "Failed to update post")
+      console.error("Error updating post:", error);
+      setError(error.message || "Failed to update post");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
         <p>Loading...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -239,6 +231,5 @@ export default function EditPost() {
         </Card>
       </form>
     </div>
-  )
+  );
 }
-

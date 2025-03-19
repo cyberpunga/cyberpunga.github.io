@@ -1,86 +1,55 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
-export default function NewAuthorProfile() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface NewProfileProps {
+  user: User;
+}
 
-  const [name, setName] = useState("")
-  const [slug, setSlug] = useState("")
-  const [description, setDescription] = useState("")
-  const [bio, setBio] = useState("")
-  const [url, setUrl] = useState("")
-  const [expertise, setExpertise] = useState("")
-  const [published, setPublished] = useState(true)
+export default function NewProfile({ user }: NewProfileProps) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function getUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.push("/login")
-        return
-      }
-
-      setUser(session.user)
-
-      try {
-        // Check if user already has an author profile
-        const { data: authorData } = await supabase.from("authors").select("id").eq("user_id", session.user.id).single()
-
-        if (authorData) {
-          // User already has a profile, redirect to dashboard
-          router.push("/dashboard")
-        }
-      } catch (error) {
-        // No profile exists, continue with creation
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    getUser()
-  }, [router])
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [description, setDescription] = useState("");
+  const [bio, setBio] = useState("");
+  const [url, setUrl] = useState("");
+  const [expertise, setExpertise] = useState("");
+  const [published, setPublished] = useState(true);
 
   const generateSlug = (name: string) => {
     return name
       .toLowerCase()
       .replace(/[^\w\s]/gi, "")
-      .replace(/\s+/g, "-")
-  }
+      .replace(/\s+/g, "-");
+  };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value
-    setName(newName)
-    setSlug(generateSlug(newName))
-  }
+    const newName = e.target.value;
+    setName(newName);
+    setSlug(generateSlug(newName));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!user) return
-
-    setSubmitting(true)
-    setError(null)
+    setLoading(true);
+    setError(null);
 
     try {
       const { data, error } = await supabase
@@ -95,26 +64,18 @@ export default function NewAuthorProfile() {
           published,
           user_id: user.id,
         })
-        .select()
+        .select();
 
-      if (error) throw error
+      if (error) throw error;
 
-      router.push("/dashboard")
+      router.push("/dashboard");
     } catch (error: any) {
-      console.error("Error creating profile:", error)
-      setError(error.message || "Failed to create profile")
+      console.error("Error creating profile:", error);
+      setError(error.message || "Failed to create profile");
     } finally {
-      setSubmitting(false)
+      setLoading(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <p>Loading...</p>
-      </div>
-    )
-  }
+  };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -196,13 +157,12 @@ export default function NewAuthorProfile() {
             <Button type="button" variant="outline" onClick={() => router.push("/dashboard")}>
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating..." : "Create Profile"}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create Profile"}
             </Button>
           </CardFooter>
         </Card>
       </form>
     </div>
-  )
+  );
 }
-

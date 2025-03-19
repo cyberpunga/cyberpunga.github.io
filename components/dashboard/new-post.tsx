@@ -1,95 +1,83 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import type { User } from "@supabase/supabase-js"
-import type { Author } from "@/types/supabase"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MarkdownRenderer } from "@/components/markdown-renderer"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
+import type { Author } from "@/types/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
-export default function NewPost() {
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [author, setAuthor] = useState<Author | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+interface NewPostProps {
+  user: User;
+}
 
-  const [title, setTitle] = useState("")
-  const [slug, setSlug] = useState("")
-  const [content, setContent] = useState("")
-  const [activeTab, setActiveTab] = useState("write")
-  const [excerpt, setExcerpt] = useState("")
-  const [category, setCategory] = useState("")
-  const [coverImage, setCoverImage] = useState("")
-  const [published, setPublished] = useState(false)
+export default function NewPost({ user }: NewPostProps) {
+  const router = useRouter();
+  const [author, setAuthor] = useState<Author | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [content, setContent] = useState("");
+  const [activeTab, setActiveTab] = useState("write");
+  const [excerpt, setExcerpt] = useState("");
+  const [category, setCategory] = useState("");
+  const [coverImage, setCoverImage] = useState("");
+  const [published, setPublished] = useState(false);
 
   useEffect(() => {
-    async function getUser() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      if (!session) {
-        router.push("/login")
-        return
-      }
-
-      setUser(session.user)
-
+    async function getAuthor() {
       try {
         // Get user's author profile
-        const { data: authorData, error } = await supabase
-          .from("authors")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .single()
+        const { data: authorData, error } = await supabase.from("authors").select("*").eq("user_id", user.id).single();
 
-        if (error) throw error
+        if (error) throw error;
 
-        setAuthor(authorData)
+        setAuthor(authorData);
       } catch (error) {
-        console.error("Error fetching author profile:", error)
-        router.push("/dashboard")
+        console.error("Error fetching author profile:", error);
+        router.push("/dashboard");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    getUser()
-  }, [router])
+    getAuthor();
+  }, [user, router]);
 
   const generateSlug = (title: string) => {
     return title
       .toLowerCase()
       .replace(/[^\w\s]/gi, "")
-      .replace(/\s+/g, "-")
-  }
+      .replace(/\s+/g, "-");
+  };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTitle = e.target.value
-    setTitle(newTitle)
-    setSlug(generateSlug(newTitle))
-  }
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    setSlug(generateSlug(newTitle));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!user || !author) return
+    if (!author) return;
 
-    setSubmitting(true)
-    setError(null)
+    setSubmitting(true);
+    setError(null);
 
     try {
       const { data, error } = await supabase
@@ -104,25 +92,25 @@ export default function NewPost() {
           published,
           author_id: author.id,
         })
-        .select()
+        .select();
 
-      if (error) throw error
+      if (error) throw error;
 
-      router.push("/dashboard")
+      router.push("/dashboard");
     } catch (error: any) {
-      console.error("Error creating post:", error)
-      setError(error.message || "Failed to create post")
+      console.error("Error creating post:", error);
+      setError(error.message || "Failed to create post");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
         <p>Loading...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -230,6 +218,5 @@ export default function NewPost() {
         </Card>
       </form>
     </div>
-  )
+  );
 }
-
