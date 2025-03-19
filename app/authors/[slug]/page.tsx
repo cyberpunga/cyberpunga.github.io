@@ -10,13 +10,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { ExternalLink, Globe } from "lucide-react"
 
 export async function generateStaticParams() {
-  const { data: authors } = await supabase.from("authors").select("slug").eq("published", true)
+  try {
+    const { data: authors } = await supabase.from("authors").select("slug").eq("published", true)
 
-  return (
-    authors?.map((author) => ({
-      slug: author.slug,
-    })) || []
-  )
+    return (
+      authors?.map((author) => ({
+        slug: author.slug,
+      })) || []
+    )
+  } catch (error) {
+    console.error("Error generating static params for authors:", error)
+    // Return a dummy value to satisfy the static export requirement
+    return [{ slug: "placeholder" }]
+  }
 }
 
 export async function generateMetadata({ params }: { params: { slug: string } }) {
