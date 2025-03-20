@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PostEditorProps {
   user: User;
@@ -25,7 +26,7 @@ interface PostEditorProps {
 
 export default function PostEditor({ user, postId }: PostEditorProps) {
   const router = useRouter();
-  const [author, setAuthor] = useState<Author | null>(null);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -39,31 +40,26 @@ export default function PostEditor({ user, postId }: PostEditorProps) {
   const [category, setCategory] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  const [authorId, setAuthorId] = useState("");
 
   useEffect(() => {
     async function fetchData() {
       try {
-        // Get user's author profile
-        const { data: authorData, error: authorError } = await supabase
+        // Get all published authors
+        const { data: authorsData, error: authorsError } = await supabase
           .from("authors")
           .select("*")
-          .eq("user_id", user.id)
-          .single();
+          .eq("published", true)
+          .order("name");
 
-        if (authorError) throw authorError;
+        if (authorsError) throw authorsError;
 
-        setAuthor(authorData);
+        setAuthors(authorsData || []);
 
         // Get post data
         const { data: postData, error: postError } = await supabase.from("posts").select("*").eq("id", postId).single();
 
         if (postError) throw postError;
-
-        // Check if user is the author of the post
-        if (postData.author_id !== authorData.id) {
-          router.push("/dashboard");
-          return;
-        }
 
         setPost(postData);
         setTitle(postData.title);
@@ -73,6 +69,7 @@ export default function PostEditor({ user, postId }: PostEditorProps) {
         setCategory(postData.category || "");
         setCoverImage(postData.cover_image || "");
         setPublished(postData.published);
+        setAuthorId(postData.author_id || "");
       } catch (error) {
         console.error("Error fetching data:", error);
         router.push("/dashboard");
@@ -87,7 +84,12 @@ export default function PostEditor({ user, postId }: PostEditorProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!author || !post) return;
+    if (!post) return;
+
+    if (!authorId) {
+      setError("Please select an author for this post");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -103,6 +105,7 @@ export default function PostEditor({ user, postId }: PostEditorProps) {
           category,
           cover_image: coverImage,
           published,
+          author_id: authorId,
           updated_at: new Date().toISOString(),
         })
         .eq("id", post.id);
@@ -143,6 +146,22 @@ export default function PostEditor({ user, postId }: PostEditorProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="author">Author *</Label>
+              <Select value={authorId} onValueChange={setAuthorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an author" />
+                </SelectTrigger>
+                <SelectContent>
+                  {authors.map((author) => (
+                    <SelectItem key={author.id} value={author.id}>
+                      {author.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>

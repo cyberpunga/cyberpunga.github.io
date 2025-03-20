@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface NewPostProps {
   user: User;
@@ -24,7 +25,7 @@ interface NewPostProps {
 
 export default function NewPost({ user }: NewPostProps) {
   const router = useRouter();
-  const [author, setAuthor] = useState<Author | null>(null);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,26 +38,31 @@ export default function NewPost({ user }: NewPostProps) {
   const [category, setCategory] = useState("");
   const [coverImage, setCoverImage] = useState("");
   const [published, setPublished] = useState(false);
+  const [authorId, setAuthorId] = useState("");
 
   useEffect(() => {
-    async function getAuthor() {
+    async function fetchAuthors() {
       try {
-        // Get user's author profile
-        const { data: authorData, error } = await supabase.from("authors").select("*").eq("user_id", user.id).single();
+        // Get all published authors
+        const { data, error } = await supabase.from("authors").select("*").eq("published", true).order("name");
 
         if (error) throw error;
 
-        setAuthor(authorData);
+        setAuthors(data || []);
+
+        // Set default author if available
+        if (data && data.length > 0) {
+          setAuthorId(data[0].id);
+        }
       } catch (error) {
-        console.error("Error fetching author profile:", error);
-        router.push("/dashboard");
+        console.error("Error fetching authors:", error);
       } finally {
         setLoading(false);
       }
     }
 
-    getAuthor();
-  }, [user, router]);
+    fetchAuthors();
+  }, []);
 
   const generateSlug = (title: string) => {
     return title
@@ -74,7 +80,10 @@ export default function NewPost({ user }: NewPostProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!author) return;
+    if (!authorId) {
+      setError("Please select an author for this post");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -90,7 +99,7 @@ export default function NewPost({ user }: NewPostProps) {
           category,
           cover_image: coverImage,
           published,
-          author_id: author.id,
+          author_id: authorId,
         })
         .select();
 
@@ -130,6 +139,31 @@ export default function NewPost({ user }: NewPostProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="author">Author *</Label>
+              <Select value={authorId} onValueChange={setAuthorId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an author" />
+                </SelectTrigger>
+                <SelectContent>
+                  {authors.map((author) => (
+                    <SelectItem key={author.id} value={author.id}>
+                      {author.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {authors.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No authors available.{" "}
+                  <a href="/dashboard/profile/new" className="text-primary hover:underline">
+                    Create an author
+                  </a>{" "}
+                  first.
+                </p>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>

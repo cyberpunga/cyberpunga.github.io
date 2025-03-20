@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
-import type { Post, Author } from "@/types/supabase";
+import type { Author, PostWithAuthor } from "@/types/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Edit, Plus, Trash2 } from "lucide-react";
@@ -26,7 +26,7 @@ interface PostsListProps {
 
 export default function PostsList({ user }: PostsListProps) {
   const [author, setAuthor] = useState<Author | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function PostsList({ user }: PostsListProps) {
         // Get posts
         const { data: postsData, error: postsError } = await supabase
           .from("posts")
-          .select("*")
+          .select("*, authors(name)")
           .eq("author_id", authorData.id)
           .order("created_at", { ascending: false });
 

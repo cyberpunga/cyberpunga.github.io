@@ -28,6 +28,7 @@ export default function NewProfile({ user }: NewProfileProps) {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [bio, setBio] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
   const [url, setUrl] = useState("");
   const [expertise, setExpertise] = useState("");
   const [published, setPublished] = useState(true);
@@ -59,6 +60,7 @@ export default function NewProfile({ user }: NewProfileProps) {
           slug,
           description,
           bio,
+          profile_picture: profilePicture,
           url,
           expertise: expertise ? expertise.split(",").map((item) => item.trim()) : [],
           published,
@@ -70,8 +72,8 @@ export default function NewProfile({ user }: NewProfileProps) {
 
       router.push("/dashboard");
     } catch (error: any) {
-      console.error("Error creating profile:", error);
-      setError(error.message || "Failed to create profile");
+      console.error("Error creating author:", error);
+      setError(error.message || "Failed to create author");
     } finally {
       setLoading(false);
     }
@@ -79,13 +81,13 @@ export default function NewProfile({ user }: NewProfileProps) {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Create Author Profile</h1>
+      <h1 className="text-3xl font-bold mb-6">Create New Author</h1>
 
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle>Profile Information</CardTitle>
-            <CardDescription>Create your author profile to start publishing posts</CardDescription>
+            <CardTitle>Author Information</CardTitle>
+            <CardDescription>Create a new author profile for your posts</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -103,7 +105,9 @@ export default function NewProfile({ user }: NewProfileProps) {
             <div className="space-y-2">
               <Label htmlFor="slug">Slug *</Label>
               <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required />
-              <p className="text-xs text-muted-foreground">This will be used in your profile URL: /authors/{slug}</p>
+              <p className="text-xs text-muted-foreground">
+                This will be used in the author profile URL: /authors/{slug}
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -112,7 +116,7 @@ export default function NewProfile({ user }: NewProfileProps) {
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="A brief description of yourself"
+                placeholder="A brief description of this author"
               />
             </div>
 
@@ -122,8 +126,18 @@ export default function NewProfile({ user }: NewProfileProps) {
                 id="bio"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
-                placeholder="Your detailed biography"
+                placeholder="The author's detailed biography"
                 rows={5}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profilePicture">Profile Picture URL</Label>
+              <Input
+                id="profilePicture"
+                value={profilePicture}
+                onChange={(e) => setProfilePicture(e.target.value)}
+                placeholder="https://example.com/profile.jpg"
               />
             </div>
 
@@ -150,7 +164,7 @@ export default function NewProfile({ user }: NewProfileProps) {
 
             <div className="flex items-center space-x-2">
               <Switch id="published" checked={published} onCheckedChange={setPublished} />
-              <Label htmlFor="published">Make profile public</Label>
+              <Label htmlFor="published">Make author public</Label>
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
@@ -158,7 +172,7 @@ export default function NewProfile({ user }: NewProfileProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Profile"}
+              {loading ? "Creating..." : "Create Author"}
             </Button>
           </CardFooter>
         </Card>
