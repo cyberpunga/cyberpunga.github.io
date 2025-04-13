@@ -1,5 +1,8 @@
 import type { NextConfig } from 'next';
 import createMDX from '@next/mdx';
+import remarkGfm from 'remark-gfm';
+import remarkFrontmatter from 'remark-frontmatter';
+import remarkMdxFrontmatter from 'remark-mdx-frontmatter';
 import rehypeUnwrapImages from 'rehype-unwrap-images';
 import rehypeMdxImportMedia from 'rehype-mdx-import-media';
 
@@ -11,7 +14,7 @@ const nextConfig: NextConfig = {
 
 const withMDX = createMDX({
   options: {
-    remarkPlugins: [],
+    remarkPlugins: [remarkGfm, remarkFrontmatter, remarkMdxFrontmatter],
     rehypePlugins: [rehypeUnwrapImages, rehypeMdxImportMedia],
   },
 });
