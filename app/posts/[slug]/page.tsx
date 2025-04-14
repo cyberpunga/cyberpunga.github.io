@@ -1,8 +1,9 @@
+import React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+// import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-import type { Metadata } from "next";
-import { siteConfig } from "@/lib/site-config";
+// import type { Metadata } from "next";
+// import { siteConfig } from "@/lib/site-config";
 import { ProseContainer } from "@/components/prose-container";
 import { FrontMatter, getPosts } from "../page";
 
@@ -39,7 +40,7 @@ export const dynamicParams = false;
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { default: Post, frontmatter }: { default: any; frontmatter: FrontMatter } = await import(
+  const { default: Post, frontmatter }: { default: React.ComponentType; frontmatter: FrontMatter } = await import(
     `@/posts/${slug}/page.mdx`
   );
 

@@ -62,9 +62,9 @@ export default function AboutPage() {
 
             <blockquote>
               <p>
-                "La pregunta por la tecnología en América Latina no es meramente técnica sino profundamente política:
-                ¿cómo construir futuros tecnológicos que no reproduzcan subordinaciones históricas sino que contribuyan
-                a la emancipación social y epistémica de la región?"
+                &quot;La pregunta por la tecnología en América Latina no es meramente técnica sino profundamente
+                política: ¿cómo construir futuros tecnológicos que no reproduzcan subordinaciones históricas sino que
+                contribuyan a la emancipación social y epistémica de la región?&quot;
               </p>
             </blockquote>
           </ProseContainer>
