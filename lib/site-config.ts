@@ -10,7 +10,7 @@ export const siteConfig = {
   },
   mainNav: [
     {
-      title: "Ensayos",
+      title: "Artículos",
       href: "/posts",
     },
     {
@@ -21,7 +21,7 @@ export const siteConfig = {
   footerNav: {
     resources: [
       { title: "Inicio", href: "/" },
-      { title: "Ensayos", href: "/posts" },
+      { title: "Artículos", href: "/posts" },
       { title: "Acerca de", href: "/about" },
     ],
     popularTags: [

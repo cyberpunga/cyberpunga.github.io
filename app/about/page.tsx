@@ -41,7 +41,7 @@ export default function AboutPage() {
 
             <h2>Enfoque Editorial</h2>
             <p>
-              Nuestros ensayos combinan rigor analítico con experimentación formal. Nos interesa explorar las
+              Nuestros artículos combinan rigor analítico con experimentación formal. Nos interesa explorar las
               posibilidades de la escritura ensayística para abordar fenómenos complejos que requieren aproximaciones
               transdisciplinarias.
             </p>
@@ -57,7 +57,7 @@ export default function AboutPage() {
             <h2>Colabora con Nosotros</h2>
             <p>
               {siteConfig.name} es un proyecto abierto a colaboraciones. Si estás interesado/a en contribuir con
-              ensayos, investigaciones o propuestas que se alineen con nuestra misión, no dudes en contactarnos.
+              artículos, investigaciones o propuestas que se alineen con nuestra misión, no dudes en contactarnos.
             </p>
 
             <blockquote>

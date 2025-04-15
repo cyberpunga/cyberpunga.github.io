@@ -25,13 +25,13 @@ export default async function Home() {
             href="/posts"
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500"
           >
-            Explorar Ensayos
+            Explorar Artículos
           </Link>
         </section> */}
 
         {/* Featured Post */}
-        <section className="mb-16">
-          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Ensayo Destacado</h2>
+        <section className="my-16">
+          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículo Destacado</h2>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             <div className="lg:col-span-3 space-y-4">
               <div className="space-y-2">
@@ -42,7 +42,7 @@ export default async function Home() {
                   <span className="text-zinc-300 dark:text-zinc-600">•</span>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">{featuredPost.frontmatter.tags[0]}</span>
                 </div>
-                <h3 className="text-zinc-900 dark:text-zinc-50">
+                <h3 className="text-zinc-900 dark:text-zinc-50 text-2xl font-bold">
                   <Link href={`/posts/${featuredPost.slug}`}>{featuredPost.frontmatter.title}</Link>
                 </h3>
               </div>
@@ -52,7 +52,7 @@ export default async function Home() {
                   href={`/posts/${featuredPost.slug}`}
                   className="text-zinc-900 dark:text-zinc-100 font-medium hover:underline inline-flex items-center"
                 >
-                  Leer ensayo completo
+                  Leer artículo completo
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-4 w-4 ml-1"
@@ -89,7 +89,7 @@ export default async function Home() {
 
         {/* Recent Posts */}
         <section>
-          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Ensayos Recientes</h2>
+          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículos Recientes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {recentPosts.map((post) => (
               <article
@@ -136,7 +136,7 @@ export default async function Home() {
               href="/posts"
               className="inline-flex items-center px-6 py-3 border border-zinc-300 dark:border-zinc-700 text-base font-medium rounded-md text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500"
             >
-              Ver todos los ensayos
+              Ver todos los artículos
             </Link>
           </div>
         </section>

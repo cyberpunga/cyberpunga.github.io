@@ -6,7 +6,7 @@ import { formatDate } from "@/lib/utils";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Ensayos",
+  title: "Artículos",
   description: "Exploraciones críticas en la intersección de tecnología, sociedad y pensamiento latinoamericano.",
 };
 
@@ -17,7 +17,7 @@ export default async function BlogPage() {
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
           <header className="mb-12">
-            <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">Ensayos</h1>
+            <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">Artículos</h1>
             <p className="text-xl text-zinc-700 dark:text-zinc-300">
               Exploraciones críticas en la intersección de tecnología, sociedad y pensamiento latinoamericano.
             </p>
@@ -34,7 +34,7 @@ export default async function BlogPage() {
                   <span className="text-zinc-300 dark:text-zinc-600">•</span>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">{post.frontmatter.tags[0]}</span>
                 </div>
-                <h2 className="mb-3 text-zinc-900 dark:text-zinc-50">
+                <h2 className="mb-3 text-zinc-900 dark:text-zinc-50 text-2xl font-bold">
                   <Link href={`/posts/${post.slug}`} className="hover:underline">
                     {post.frontmatter.title}
                   </Link>
@@ -54,7 +54,7 @@ export default async function BlogPage() {
                   href={`/posts/${post.slug}`}
                   className="text-zinc-900 dark:text-zinc-100 font-medium hover:underline inline-flex items-center"
                 >
-                  Leer ensayo completo
+                  Leer artículo completo
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-4 w-4 ml-1"

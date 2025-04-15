@@ -82,12 +82,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Volver a ensayos
+                Volver a artículos
               </Link>
               <span className="text-zinc-300 dark:text-zinc-600">•</span>
               <time className="text-sm text-zinc-500 dark:text-zinc-400">{formatDate(frontmatter.date)}</time>
             </div>
-            <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">{frontmatter.title}</h1>
+            <h1 className="mb-4 text-zinc-900 dark:text-zinc-50 text-3xl">{frontmatter.title}</h1>
             <p className="text-xl text-zinc-700 dark:text-zinc-300 mb-6">{frontmatter.description}</p>
             <div className="flex flex-wrap gap-2">
               {frontmatter.tags.map((tag) => (
@@ -107,7 +107,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {prevPost && (
                 <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-6">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Ensayo anterior</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Artículo anterior</span>
                   <h3 className="text-lg font-mono font-semibold mb-2 text-zinc-900 dark:text-zinc-50">
                     <Link href={`/posts/${prevPost.slug}`} className="hover:underline">
                       {prevPost.frontmatter.title}
@@ -127,7 +127,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
               )}
               {nextPost && (
                 <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-6">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Ensayo siguiente</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Artículo siguiente</span>
                   <h3 className="text-lg font-mono font-semibold mb-2 text-zinc-900 dark:text-zinc-50">
                     <Link href={`/posts/${nextPost.slug}`} className="hover:underline">
                       {nextPost.frontmatter.title}
