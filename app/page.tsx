@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
 import { getPosts } from "./posts/page";
+import { AsciiAnimation } from "@/components/ascii-animation";
 
 export default async function Home() {
   const blogPosts = await getPosts();
@@ -14,7 +15,7 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
-      <main className="container mx-auto px-4 py-12">
+      <main className="container mx-auto px-4 py-12 z-10 relative">
         {/* Hero Section */}
         {/* <section className="mb-16 border-b border-zinc-200 dark:border-zinc-800 pb-16">
           <h1 className="mb-6 text-zinc-900 dark:text-zinc-50">{siteConfig.name}</h1>
@@ -141,6 +142,7 @@ export default async function Home() {
           </div>
         </section>
       </main>
+      <AsciiAnimation className="fixed top-0 z-0" />
     </div>
   );
 }
