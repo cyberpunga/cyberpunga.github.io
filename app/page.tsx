@@ -31,7 +31,7 @@ export default async function Home() {
         </section> */}
 
         {/* Featured Post */}
-        <section className="my-16">
+        <section className="min-h-[90vh] py-16 justify-end flex flex-col">
           <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículo Destacado</h2>
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             <div className="lg:col-span-3 space-y-4">
@@ -89,7 +89,7 @@ export default async function Home() {
         </section>
 
         {/* Recent Posts */}
-        <section>
+        <section className="py-16">
           <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículos Recientes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {recentPosts.map((post) => (
