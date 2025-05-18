@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { siteConfig } from "@/lib/site-config";
+import { getPosts } from "@/app/posts/page";
+import { Tag } from "./blog-post-tag";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const blogPosts = await getPosts();
+  const uniqueTags = [...new Set(blogPosts.flatMap((post) => post.frontmatter.tags))];
   return (
     <footer className="border-t border-zinc-200 bg-background/50 backdrop-blur-[2px] dark:border-zinc-800 z-10">
       <div className="container mx-auto px-4 py-8">
@@ -28,16 +32,10 @@ export function SiteFooter() {
             </ul>
           </div>
           <div>
-            <h3 className="text-sm font-mono font-semibold text-zinc-900 dark:text-zinc-50">Temas</h3>
+            <h3 className="text-sm font-mono font-semibold text-zinc-900 dark:text-zinc-50">Tags</h3>
             <div className="mt-4 flex flex-wrap gap-2">
-              {siteConfig.footerNav.popularTags.map((tag) => (
-                <Link
-                  key={tag.href}
-                  href={tag.href}
-                  className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-800 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                >
-                  {tag.title}
-                </Link>
+              {uniqueTags.map((tag) => (
+                <Tag key={tag} tag={tag} />
               ))}
             </div>
           </div>

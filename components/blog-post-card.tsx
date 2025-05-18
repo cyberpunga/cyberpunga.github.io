@@ -1,6 +1,7 @@
 import SimpleMarquee from "@/fancy/components/blocks/simple-marquee";
 import { slugify } from "@/lib/utils";
 import Link from "next/link";
+import { Tag } from "./blog-post-tag";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -48,13 +49,7 @@ export function BlogPostCard({ slug, frontmatter }: PostCardProps) {
           {frontmatter.tags
             .map((tag) => slugify(tag.toLowerCase()))
             .map((tag, index) => (
-              <Link
-                key={`${tag}-${index}`}
-                href={`/posts?tag=${slugify(tag.toLowerCase())}`}
-                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 whitespace-nowrap"
-              >
-                {tag}
-              </Link>
+              <Tag key={`${tag}-${index}`} tag={tag} />
             ))}
         </SimpleMarquee>
       </div>

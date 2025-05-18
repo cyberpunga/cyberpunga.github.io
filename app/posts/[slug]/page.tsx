@@ -6,6 +6,8 @@ import { formatDate } from "@/lib/utils";
 // import { siteConfig } from "@/lib/site-config";
 import { ProseContainer } from "@/components/prose-container";
 import { FrontMatter, getPosts } from "../page";
+import { Tag } from "@/components/blog-post-tag";
+import { BlogPostCard } from "@/components/blog-post-card";
 
 export async function generateStaticParams() {
   const blogPosts = await getPosts();
@@ -91,12 +93,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             <p className="text-xl text-zinc-700 dark:text-zinc-300 mb-6">{frontmatter.description}</p>
             <div className="flex flex-wrap gap-2">
               {frontmatter.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                >
-                  {tag}
-                </span>
+                <Tag key={tag} tag={tag} />
               ))}
             </div>
           </header>
@@ -105,46 +102,8 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </ProseContainer>
           <div className="mt-16 pt-8 border-t border-zinc-200 dark:border-zinc-800">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {prevPost && (
-                <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-6">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Artículo anterior</span>
-                  <h3 className="text-lg font-mono font-semibold mb-2 text-zinc-900 dark:text-zinc-50">
-                    <Link href={`/posts/${prevPost.slug}`} className="hover:underline">
-                      {prevPost.frontmatter.title}
-                    </Link>
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {prevPost.frontmatter.tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {nextPost && (
-                <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg p-6">
-                  <span className="text-sm text-zinc-500 dark:text-zinc-400 block mb-2">Artículo siguiente</span>
-                  <h3 className="text-lg font-mono font-semibold mb-2 text-zinc-900 dark:text-zinc-50">
-                    <Link href={`/posts/${nextPost.slug}`} className="hover:underline">
-                      {nextPost.frontmatter.title}
-                    </Link>
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {nextPost.frontmatter.tags.slice(0, 2).map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {prevPost && <BlogPostCard key={prevPost.slug} slug={prevPost.slug} frontmatter={prevPost.frontmatter} />}
+              {nextPost && <BlogPostCard key={nextPost.slug} slug={nextPost.slug} frontmatter={nextPost.frontmatter} />}
             </div>
           </div>
         </article>
