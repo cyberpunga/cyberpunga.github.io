@@ -3,7 +3,7 @@ import { siteConfig } from "@/lib/site-config";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 z-10">
+    <footer className="border-t border-zinc-200 bg-background/50 backdrop-blur-[2px] dark:border-zinc-800 z-10">
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>

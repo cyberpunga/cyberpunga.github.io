@@ -1,7 +1,6 @@
 export const siteConfig = {
   name: "cyberpunga",
-  description:
-    "explorando las intersecciones entre tecnología, sociedad y condición humana desde una perspectiva latinoamericana.",
+  description: "si estás leyendo esto, significa que sigues con vida y nos alegra muchísimo.",
   url: "https://cyberpun.ga", // Replace with your actual domain when you have one
   ogImage: "https://cyberpun.ga/og.jpg", // For social media previews
   links: {
@@ -13,16 +12,16 @@ export const siteConfig = {
       title: "Artículos",
       href: "/posts",
     },
-    {
-      title: "Acerca de",
-      href: "/about",
-    },
+    // {
+    //   title: "Acerca de",
+    //   href: "/about",
+    // },
   ],
   footerNav: {
     resources: [
       { title: "Inicio", href: "/" },
       { title: "Artículos", href: "/posts" },
-      { title: "Acerca de", href: "/about" },
+      // { title: "Acerca de", href: "/about" },
     ],
     popularTags: [
       { title: "tecnología", href: "/posts?tag=tecnología" },

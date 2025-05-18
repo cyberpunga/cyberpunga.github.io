@@ -15,7 +15,7 @@ export default async function BlogPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">
       <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mr-auto">
           <header className="mb-12">
             <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">Artículos</h1>
             <p className="text-xl text-zinc-700 dark:text-zinc-300">
