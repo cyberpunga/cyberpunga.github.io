@@ -3,16 +3,13 @@
 import { Button } from "@/components/ui/button";
 import {
   buildGitHubTokenUrl,
-  clearGitHubToken,
   githubErrorMessage,
   githubHeaders,
-  saveGitHubToken,
-  validateGitHubToken,
   writerRepository,
   writerRepositoryFullName,
   writerStorage,
 } from "@/lib/github-auth";
-import type { GitHubAuthUser } from "@/lib/github-auth";
+import { useAuth } from "@/lib/github-auth-context";
 import { ExternalLink, ImagePlus, KeyRound, LogOut, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -38,11 +35,6 @@ type DraftState = {
   body: string;
 };
 
-type AuthState =
-  | { kind: "checking"; token: string }
-  | { kind: "signed-out"; token: string; message?: string }
-  | { kind: "signed-in"; token: string; user: GitHubAuthUser };
-
 const emptyDraft = (): DraftState => ({
   title: "",
   date: new Date().toISOString().slice(0, 10),
@@ -52,11 +44,12 @@ const emptyDraft = (): DraftState => ({
 });
 
 export default function DashboardPage() {
-  const [auth, setAuth] = useState<AuthState>({ kind: "checking", token: "" });
+  const { auth, signIn, signOut } = useAuth();
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [publishState, setPublishState] = useState<PublishState>({ kind: "idle", message: "" });
+  const [tokenInput, setTokenInput] = useState("");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const slug = useMemo(() => slugify(draft.title), [draft.title]);
@@ -68,10 +61,8 @@ export default function DashboardPage() {
     const savedToken = window.localStorage.getItem(writerStorage.tokenKey) ?? "";
     const savedDraft = window.localStorage.getItem(writerStorage.draftKey);
 
-    if (!savedToken) {
-      setAuth({ kind: "signed-out", token: "" });
-    } else {
-      validateStoredToken(savedToken);
+    if (savedToken) {
+      setTokenInput(savedToken);
     }
 
     if (savedDraft) {
@@ -97,39 +88,16 @@ export default function DashboardPage() {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  async function validateStoredToken(token: string) {
-    setAuth({ kind: "checking", token });
-
-    try {
-      const user = await validateGitHubToken(token);
-      saveGitHubToken(token.trim());
-      setAuth({ kind: "signed-in", token: token.trim(), user });
-    } catch (error) {
-      clearGitHubToken();
-      setAuth({
-        kind: "signed-out",
-        token,
-        message: error instanceof Error ? error.message : "GitHub sign in failed.",
-      });
-    }
-  }
-
-  function updateAuthToken(token: string) {
-    setAuth((current) => ({ ...current, token }));
-  }
-
-  function signOut() {
-    clearGitHubToken();
-    setAuth({ kind: "signed-out", token: "" });
-  }
-
-  async function signIn() {
-    if (!auth.token.trim()) {
-      setAuth({ kind: "signed-out", token: "", message: "Paste a GitHub token first." });
+  async function handleSignIn() {
+    if (!tokenInput.trim()) {
       return;
     }
 
-    await validateStoredToken(auth.token);
+    try {
+      await signIn(tokenInput);
+    } catch {
+      setTokenInput("");
+    }
   }
 
   function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
@@ -185,6 +153,10 @@ export default function DashboardPage() {
   }
 
   async function publishPost() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
     setPublishState({ kind: "working", message: "Preparing post..." });
 
     try {
@@ -226,9 +198,17 @@ export default function DashboardPage() {
     }
   }
 
-  const isSignedIn = auth.kind === "signed-in";
+  if (auth.kind === "checking") {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
+        <div className="flex h-48 items-center justify-center">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Checking authentication...</p>
+        </div>
+      </main>
+    );
+  }
 
-  if (!isSignedIn) {
+  if (auth.kind !== "signed-in") {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
         <header className="border-b border-zinc-200 pb-6 dark:border-zinc-800">
@@ -257,16 +237,16 @@ export default function DashboardPage() {
             <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">GitHub token</span>
             <input
               type="password"
-              value={auth.token}
-              onChange={(event) => updateAuthToken(event.target.value)}
+              value={tokenInput}
+              onChange={(event) => setTokenInput(event.target.value)}
               className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
               placeholder="github_pat_..."
             />
           </label>
 
-          <Button type="button" className="w-full sm:w-auto" onClick={signIn} disabled={auth.kind === "checking"}>
+          <Button type="button" className="w-full sm:w-auto" onClick={handleSignIn}>
             <KeyRound />
-            {auth.kind === "checking" ? "Checking..." : "Sign in"}
+            Sign in
           </Button>
 
           <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
@@ -274,9 +254,9 @@ export default function DashboardPage() {
             then select {writerRepository.name}. The token stays in this browser.
           </p>
 
-          {auth.kind === "signed-out" && auth.message ? (
+          {auth.kind === "invalid" ? (
             <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-              {auth.message}
+              Authentication failed. Check your token and try again.
             </p>
           ) : null}
         </section>
