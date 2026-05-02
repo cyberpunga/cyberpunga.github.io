@@ -446,7 +446,7 @@ export default function DashboardPage() {
 
           {auth.kind === "invalid" ? (
             <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
-              Authentication failed. Check your token and try again.
+              {auth.message || "Authentication failed. Check your token and try again."}
             </p>
           ) : null}
         </section>

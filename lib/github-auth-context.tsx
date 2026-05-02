@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import {
   GitHubAuthUser,
   clearGitHubToken,
+  ensureGitHubUserContentEntry,
   getStoredGitHubToken,
   githubAuthChangeEvent,
   saveGitHubToken,
@@ -15,7 +16,7 @@ type AuthState =
   | { kind: "checking" }
   | { kind: "signed-out" }
   | { kind: "signed-in"; user: GitHubAuthUser; token: string }
-  | { kind: "invalid" };
+  | { kind: "invalid"; message: string };
 
 type AuthContextValue = {
   auth: AuthState;
@@ -59,12 +60,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const user = await validateGitHubToken(token);
+      if (!isLatestRequest()) {
+        return;
+      }
+
+      await ensureGitHubUserContentEntry(token, user);
       if (isLatestRequest()) {
         setAuth({ kind: "signed-in", user, token });
       }
-    } catch {
+    } catch (error) {
       if (isLatestRequest()) {
-        setAuth({ kind: "invalid" });
+        setAuth({ kind: "invalid", message: error instanceof Error ? error.message : "Authentication failed." });
       }
     }
   }, []);
@@ -91,13 +97,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuth({ kind: "checking" });
     try {
       const user = await validateGitHubToken(trimmedToken);
+      if (!isLatestRequest()) {
+        return;
+      }
+
+      await ensureGitHubUserContentEntry(trimmedToken, user);
       if (isLatestRequest()) {
         saveGitHubToken(trimmedToken, { notify: false });
         setAuth({ kind: "signed-in", user, token: trimmedToken });
       }
-    } catch {
+    } catch (error) {
       if (isLatestRequest()) {
-        setAuth({ kind: "invalid" });
+        setAuth({ kind: "invalid", message: error instanceof Error ? error.message : "Authentication failed." });
       }
     }
   }, []);

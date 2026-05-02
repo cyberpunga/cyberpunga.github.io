@@ -130,7 +130,7 @@ content/posts/<slug>/page.mdx
 content/posts/<slug>/images/
 ```
 
-Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor.
+Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor. Al iniciar sesión, el flujo de autenticación también crea `content/users/<login>/page.mdx` desde el perfil de GitHub si todavía no existe; si ya existe, no lo sobrescribe.
 
 ## Tipos de contenido
 

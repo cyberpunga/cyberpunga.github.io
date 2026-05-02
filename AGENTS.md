@@ -63,7 +63,7 @@ content/<collection>/<slug>/page.mdx
 
 `_type.json` supports v1 light custom fields: `text`, `textarea`, `date`, `boolean`, `select`, `list`, and `tags`. Every publishable entry has implicit `title`, `description`, and MDX body fields.
 
-Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, loads collection definitions from GitHub, generates frontmatter, writes entries to `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
+Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, ensures `content/users/<github-login>/page.mdx` exists for the signed-in user without overwriting an existing entry, loads collection definitions from GitHub, generates frontmatter, writes entries to `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
 
 ## Commands
 
