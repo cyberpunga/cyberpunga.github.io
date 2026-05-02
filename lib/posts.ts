@@ -1,7 +1,7 @@
 import type React from "react";
-import type { Dirent } from "fs";
-import { readdir } from "fs/promises";
 import { cache } from "react";
+
+import { getCollectionEntries, getContentEntryBySlug, getContentEntryModule } from "@/lib/content";
 
 export type FrontMatter = {
   title: string;
@@ -20,21 +20,12 @@ export type PostModule = {
   frontmatter: FrontMatter;
 };
 
-const POSTS_DIRECTORY = "posts";
-
 export const getPosts = cache(async (): Promise<PostSummary[]> => {
-  const entries = await readdir(POSTS_DIRECTORY, { withFileTypes: true });
-  const posts = await Promise.all(entries.filter(isPostDirectory).map(getPostSummary));
-
-  return posts.sort((a, b) => {
-    const dateDifference = new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime();
-
-    if (dateDifference !== 0) {
-      return dateDifference;
-    }
-
-    return a.frontmatter.title.localeCompare(b.frontmatter.title, "es");
-  });
+  const posts = await getCollectionEntries("posts");
+  return posts.map((post) => ({
+    slug: post.slug,
+    frontmatter: toPostFrontmatter(post.frontmatter),
+  }));
 });
 
 export const getPostSlugs = cache(async () => {
@@ -43,22 +34,27 @@ export const getPostSlugs = cache(async () => {
 });
 
 export async function getPostModule(slug: string): Promise<PostModule> {
-  return import(`@/posts/${slug}/page.mdx`);
+  return getContentEntryModule("posts", slug) as Promise<PostModule>;
 }
 
 export async function getPostBySlug(slug: string): Promise<PostSummary | undefined> {
-  const posts = await getPosts();
-  return posts.find((post) => post.slug === slug);
-}
+  const post = await getContentEntryBySlug("posts", slug);
 
-function isPostDirectory(entry: Dirent) {
-  return entry.isDirectory();
-}
+  if (!post) {
+    return undefined;
+  }
 
-async function getPostSummary(entry: Dirent): Promise<PostSummary> {
-  const { frontmatter } = await getPostModule(entry.name);
   return {
-    slug: entry.name,
-    frontmatter,
+    slug: post.slug,
+    frontmatter: toPostFrontmatter(post.frontmatter),
+  };
+}
+
+function toPostFrontmatter(frontmatter: Record<string, unknown>): FrontMatter {
+  return {
+    title: String(frontmatter.title),
+    date: String(frontmatter.date),
+    description: String(frontmatter.description),
+    tags: Array.isArray(frontmatter.tags) ? frontmatter.tags.map(String) : [],
   };
 }

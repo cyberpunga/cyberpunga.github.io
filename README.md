@@ -63,20 +63,25 @@ Notas:
 ```text
 app/
   page.tsx              Página principal
+  [collection]/
+    page.tsx            Índice estático de colecciones, con vista especial para artículos
+    [slug]/page.tsx     Página estática de entrada, con vista especial para artículos
   dashboard/
-    page.tsx            Dashboard estático que publica posts vía GitHub API
+    page.tsx            Dashboard estático que publica contenido vía GitHub API
   posts/
-    page.tsx            Índice de artículos
-    posts-list.tsx      Filtro cliente por tag
-    [slug]/page.tsx     Página estática de cada artículo
+    posts-list.tsx      Filtro cliente por tag para artículos
 components/             Componentes compartidos
+content/
+  posts/
+    _type.json          Definición de la colección de artículos
+    <slug>/
+      page.mdx          Contenido del artículo
+      images/           Imágenes locales del artículo
 lib/
+  content.ts            Carga genérica de colecciones y entradas
+  content-schema.ts     Tipos y validación liviana de colecciones
   posts.ts              Carga, ordenamiento y metadata de posts
   site-config.ts        Configuración del sitio y del publicador
-posts/
-  <slug>/
-    page.mdx            Contenido del artículo
-    images/             Imágenes locales del artículo
 .agents/
   skills/
     project-doc-maintainer/
@@ -85,10 +90,10 @@ posts/
 
 ## Publicar un artículo
 
-Crea una carpeta dentro de `posts/` usando el slug de la URL:
+Crea una carpeta dentro de `content/posts/` usando el slug de la URL:
 
 ```text
-posts/mi-nuevo-articulo/page.mdx
+content/posts/mi-nuevo-articulo/page.mdx
 ```
 
 Cada archivo MDX debe incluir frontmatter:
@@ -107,7 +112,7 @@ Contenido del artículo...
 Las imágenes pueden vivir junto al artículo:
 
 ```text
-posts/mi-nuevo-articulo/images/01.jpeg
+content/posts/mi-nuevo-articulo/images/01.jpeg
 ```
 
 Y referenciarse desde MDX:
@@ -121,11 +126,38 @@ También se pueden crear artículos desde `/dashboard`. Es un dashboard estátic
 El publicador crea entradas con esta misma estructura:
 
 ```text
-posts/<slug>/page.mdx
-posts/<slug>/images/
+content/posts/<slug>/page.mdx
+content/posts/<slug>/images/
 ```
 
 Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor.
+
+## Tipos de contenido
+
+`posts` es la primera colección integrada. Su definición vive en:
+
+```text
+content/posts/_type.json
+```
+
+El dashboard también permite crear nuevas colecciones. Cada colección nueva se guarda como:
+
+```text
+content/<coleccion>/_type.json
+content/<coleccion>/<slug>/page.mdx
+content/<coleccion>/<slug>/images/
+```
+
+Las colecciones nuevas usan campos livianos en frontmatter: `text`, `textarea`, `date`, `boolean`, `select`, `list` y `tags`. Todas las entradas tienen siempre `title`, `description` y cuerpo MDX.
+
+Después del siguiente build estático, las colecciones nuevas se publican con rutas genéricas:
+
+```text
+/<coleccion>
+/<coleccion>/<slug>
+```
+
+Las rutas `posts`, `dashboard` y `about` están reservadas. Los artículos mantienen sus URLs públicas en `/posts` y `/posts/<slug>`, aunque sus archivos vivan en `content/posts`.
 
 ## Tags
 

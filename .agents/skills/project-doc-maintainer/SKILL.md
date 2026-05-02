@@ -45,5 +45,5 @@ Usually skip doc edits for:
 
 - This site uses Next.js static export via `output: "export"` and deploys the generated `out/` directory.
 - Use `pnpm` commands in docs.
-- Posts live at `posts/<slug>/page.mdx` with required frontmatter and colocated images.
+- Posts live at `content/posts/<slug>/page.mdx` with required frontmatter and colocated images.
 - Avoid documenting runtime Next server features unless the deployment model changes.

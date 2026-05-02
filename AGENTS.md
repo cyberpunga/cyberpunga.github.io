@@ -9,10 +9,13 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 ## Key Architecture
 
 - App routes live in `app/`.
-- Posts live in `posts/<slug>/page.mdx`.
-- Post metadata is loaded from MDX frontmatter.
-- `lib/posts.ts` scans post directories, imports MDX modules, reads `frontmatter`, and sorts posts newest-first.
-- `app/posts/[slug]/page.tsx` statically generates all post pages with `generateStaticParams`.
+- Content collections live in `content/<collection>/`.
+- Each collection has a `content/<collection>/_type.json` definition with labels, route, sort, and dashboard field schema.
+- Posts live in `content/posts/<slug>/page.mdx` but keep public URLs at `/posts/<slug>`.
+- Content metadata is loaded from MDX frontmatter.
+- `lib/content.ts` scans collection directories, imports MDX modules, reads `frontmatter`, and supports generic static collection routes.
+- `lib/posts.ts` wraps `lib/content.ts` for the custom posts UI and sorts posts newest-first via the posts collection definition.
+- `app/[collection]/page.tsx` and `app/[collection]/[slug]/page.tsx` statically generate collection list/detail pages with `generateStaticParams`; they special-case `posts` to preserve the custom article UX.
 - `app/posts/posts-list.tsx` is a client component for query-string tag filtering.
 - Shared UI lives in `components/`.
 - shadcn-style primitives live in `components/ui/`.
@@ -29,7 +32,7 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 Each post must be in:
 
 ```text
-posts/<slug>/page.mdx
+content/posts/<slug>/page.mdx
 ```
 
 Required frontmatter:
@@ -46,12 +49,21 @@ tags: ["tag-one", "tag-two"]
 Images should be colocated in the post folder, usually:
 
 ```text
-posts/<slug>/images/image.jpeg
+content/posts/<slug>/images/image.jpeg
 ```
 
 Reference them from MDX with relative paths.
 
-Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, generates frontmatter, writes posts to `posts/<slug>/page.mdx`, uploads media under each post's `images/` folder, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
+New content collections must have:
+
+```text
+content/<collection>/_type.json
+content/<collection>/<slug>/page.mdx
+```
+
+`_type.json` supports v1 light custom fields: `text`, `textarea`, `date`, `boolean`, `select`, `list`, and `tags`. Every publishable entry has implicit `title`, `description`, and MDX body fields.
+
+Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, loads collection definitions from GitHub, generates frontmatter, writes entries to `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
 
 ## Commands
 
@@ -94,10 +106,13 @@ MDX images are rendered through `next/image` with `unoptimized`.
 
 The `/dashboard` route and header auth status are client-only static tools. Do not add server-only publishing code unless the deployment model changes.
 
+Dashboard-created collection routes become public after the next static build/deploy. Do not introduce runtime route creation.
+
 ## Known Gotchas
 
 - The home page assumes at least one post exists.
 - `app/globals.css` appears to have a typo: `var(----font-noto-sans)` should likely be `var(--font-noto-sans)`.
 - `next lint` is deprecated.
 - `pnpm start` is not the right production path for static export; serve the generated `out/` directory instead.
+- The public route segments `posts`, `dashboard`, and `about` are reserved for content collections.
 - `/dashboard` authors need repository access and a fine-grained GitHub PAT with `Contents: write`. GitHub token URLs can prefill resource owner and permissions, but not the specific selected repository via documented query params; authors must select `cyberpunga.github.io` in GitHub's Repository access UI. Outside collaborators on organization repos may need different GitHub access setup if fine-grained PAT limitations apply.

@@ -2,6 +2,20 @@
 
 import { Button } from "@/components/ui/button";
 import {
+  type CollectionDefinition,
+  type ContentFieldDefinition,
+  type ContentFieldType,
+  contentFieldTypes,
+  fieldNameFromLabel,
+  isReservedCollectionRoute,
+  isSafeContentSegment,
+  isSafeFieldName,
+  normalizeCollectionDefinition,
+  normalizeContentSegment,
+  orderCollectionDefinitions,
+  postCollectionDefinition,
+} from "@/lib/content-schema";
+import {
   buildGitHubTokenUrl,
   githubErrorMessage,
   githubHeaders,
@@ -10,7 +24,18 @@ import {
   writerStorage,
 } from "@/lib/github-auth";
 import { useAuth } from "@/lib/github-auth-context";
-import { ExternalLink, ImagePlus, KeyRound, LogOut, Send, Trash2 } from "lucide-react";
+import {
+  ExternalLink,
+  FileText,
+  ImagePlus,
+  KeyRound,
+  ListPlus,
+  LogOut,
+  Plus,
+  RefreshCw,
+  Send,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,71 +46,173 @@ type SelectedImage = {
   previewUrl: string;
 };
 
-type PublishState = {
+type ActionState = {
   kind: "idle" | "working" | "success" | "error";
   message: string;
   href?: string;
 };
 
-type DraftState = {
+type FieldDraftValue = string | boolean;
+
+type EntryDraft = {
   title: string;
-  date: string;
   description: string;
-  tagsInput: string;
+  fieldValues: Record<string, FieldDraftValue>;
   body: string;
 };
 
-const emptyDraft = (): DraftState => ({
-  title: "",
-  date: new Date().toISOString().slice(0, 10),
+type NewFieldDraft = {
+  id: string;
+  label: string;
+  type: ContentFieldType;
+  required: boolean;
+  placeholder: string;
+  optionsInput: string;
+};
+
+type TypeDraft = {
+  label: string;
+  pluralLabel: string;
+  description: string;
+  fields: NewFieldDraft[];
+};
+
+type GitHubContentItem = {
+  type?: string;
+  name?: string;
+  content?: string;
+  encoding?: string;
+};
+
+const emptyTypeDraft = (): TypeDraft => ({
+  label: "",
+  pluralLabel: "",
   description: "",
-  tagsInput: "",
-  body: "",
+  fields: [],
 });
+
+const baseInputClass =
+  "h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
+const textareaClass =
+  "resize-y rounded-md border border-zinc-300 bg-background px-3 py-2 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
 
 export default function DashboardPage() {
   const { auth, signIn, signOut } = useAuth();
-  const [draft, setDraft] = useState<DraftState>(emptyDraft);
+  const [collections, setCollections] = useState<CollectionDefinition[]>([postCollectionDefinition]);
+  const [collectionsState, setCollectionsState] = useState<ActionState>({ kind: "idle", message: "" });
+  const [selectedCollectionId, setSelectedCollectionId] = useState(postCollectionDefinition.id);
+  const selectedCollection = useMemo(
+    () => collections.find((collection) => collection.id === selectedCollectionId) ?? collections[0] ?? postCollectionDefinition,
+    [collections, selectedCollectionId],
+  );
+  const [draft, setDraft] = useState<EntryDraft>(() => emptyEntryDraft(selectedCollection));
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [typeDraft, setTypeDraft] = useState<TypeDraft>(emptyTypeDraft);
   const [images, setImages] = useState<SelectedImage[]>([]);
-  const [publishState, setPublishState] = useState<PublishState>({ kind: "idle", message: "" });
+  const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
   const [tokenInput, setTokenInput] = useState("");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const imagesRef = useRef<SelectedImage[]>([]);
 
-  const slug = useMemo(() => slugify(draft.title), [draft.title]);
-  const tags = useMemo(() => parseTags(draft.tagsInput), [draft.tagsInput]);
-  const mdx = useMemo(() => buildMdx(draft, tags), [draft, tags]);
+  const authToken = auth.kind === "signed-in" ? auth.token : "";
+  const slug = useMemo(() => normalizeContentSegment(draft.title), [draft.title]);
+  const mdx = useMemo(() => buildMdx(selectedCollection, draft), [selectedCollection, draft]);
   const tokenUrl = useMemo(() => buildGitHubTokenUrl(), []);
+  const entryPath = `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
+  const selectedTags = getTagsForCollection(selectedCollection, draft);
 
   useEffect(() => {
     const savedToken = window.localStorage.getItem(writerStorage.tokenKey) ?? "";
-    const savedDraft = window.localStorage.getItem(writerStorage.draftKey);
 
     if (savedToken) {
       setTokenInput(savedToken);
     }
+  }, []);
 
-    if (savedDraft) {
-      try {
-        setDraft({ ...emptyDraft(), ...JSON.parse(savedDraft) });
-      } catch {
-        window.localStorage.removeItem(writerStorage.draftKey);
-      }
+  useEffect(() => {
+    if (auth.kind !== "signed-in" || !authToken) {
+      setCollections([postCollectionDefinition]);
+      setCollectionsState({ kind: "idle", message: "" });
+      return;
     }
 
+    let ignore = false;
+    setCollectionsState({ kind: "working", message: "Loading content types..." });
+
+    loadCollectionsFromGitHub(authToken)
+      .then((nextCollections) => {
+        if (ignore) {
+          return;
+        }
+
+        setCollections(nextCollections);
+        setCollectionsState({ kind: "success", message: "Content types loaded." });
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setCollections([postCollectionDefinition]);
+        setCollectionsState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not load content types.",
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth.kind, authToken]);
+
+  useEffect(() => {
+    if (!collections.some((collection) => collection.id === selectedCollectionId)) {
+      setSelectedCollectionId(collections[0]?.id ?? postCollectionDefinition.id);
+    }
+  }, [collections, selectedCollectionId]);
+
+  useEffect(() => {
+    setDraftLoaded(false);
+
+    const savedDraft = window.localStorage.getItem(draftStorageKey(selectedCollection.id));
+    const nextDraft = savedDraft ? parseStoredDraft(savedDraft, selectedCollection) : emptyEntryDraft(selectedCollection);
+
+    setDraft(nextDraft);
+    clearSelectedImages();
+    setActionState({ kind: "idle", message: "" });
     setDraftLoaded(true);
-  }, []);
+  }, [selectedCollection]);
 
   useEffect(() => {
     if (!draftLoaded) {
       return;
     }
 
-    window.localStorage.setItem(writerStorage.draftKey, JSON.stringify(draft));
-  }, [draft, draftLoaded]);
+    window.localStorage.setItem(draftStorageKey(selectedCollection.id), JSON.stringify(draft));
+  }, [draft, draftLoaded, selectedCollection.id]);
 
-  function updateDraft<Key extends keyof DraftState>(key: Key, value: DraftState[Key]) {
+  useEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+
+  useEffect(() => {
+    return () => {
+      imagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+    };
+  }, []);
+
+  function updateDraft<Key extends keyof Omit<EntryDraft, "fieldValues">>(key: Key, value: EntryDraft[Key]) {
     setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateFieldValue(field: ContentFieldDefinition, value: FieldDraftValue) {
+    setDraft((current) => ({
+      ...current,
+      fieldValues: {
+        ...current.fieldValues,
+        [field.name]: value,
+      },
+    }));
   }
 
   async function handleSignIn() {
@@ -108,7 +235,7 @@ export default function DashboardPage() {
       existingNames.add(safeName);
 
       return {
-        id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`,
+        id: `${file.name}-${file.lastModified}-${randomId()}`,
         file,
         safeName,
         previewUrl: URL.createObjectURL(file),
@@ -127,6 +254,13 @@ export default function DashboardPage() {
       }
 
       return current.filter((item) => item.id !== id);
+    });
+  }
+
+  function clearSelectedImages() {
+    setImages((current) => {
+      current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      return [];
     });
   }
 
@@ -152,48 +286,104 @@ export default function DashboardPage() {
     });
   }
 
-  async function publishPost() {
+  async function refreshCollections() {
     if (auth.kind !== "signed-in") {
       return;
     }
 
-    setPublishState({ kind: "working", message: "Preparing post..." });
+    setCollectionsState({ kind: "working", message: "Loading content types..." });
 
     try {
-      validateDraft(draft, slug, tags, auth.token);
+      const nextCollections = await loadCollectionsFromGitHub(auth.token);
+      setCollections(nextCollections);
+      setCollectionsState({ kind: "success", message: "Content types loaded." });
+    } catch (error) {
+      setCollectionsState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not load content types.",
+      });
+    }
+  }
 
-      const pagePath = `posts/${slug}/page.mdx`;
+  async function publishEntry() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setActionState({ kind: "working", message: `Preparing ${selectedCollection.label.toLowerCase()}...` });
+
+    try {
+      validateEntryDraft(selectedCollection, draft, slug, auth.token);
+
+      const pagePath = `content/${selectedCollection.id}/${slug}/page.mdx`;
       await ensurePathIsNew(pagePath, auth.token.trim());
 
       for (const image of images) {
-        setPublishState({ kind: "working", message: `Uploading ${image.safeName}...` });
+        setActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
         const content = await fileToBase64(image.file);
         await putFile({
-          path: `posts/${slug}/images/${image.safeName}`,
+          path: `content/${selectedCollection.id}/${slug}/images/${image.safeName}`,
           content,
           message: `Add image for ${draft.title}`,
           token: auth.token.trim(),
         });
       }
 
-      setPublishState({ kind: "working", message: "Publishing post..." });
+      setActionState({ kind: "working", message: `Publishing ${selectedCollection.label.toLowerCase()}...` });
       const result = await putFile({
         path: pagePath,
         content: textToBase64(mdx),
-        message: `Add post: ${draft.title}`,
+        message: `Add ${selectedCollection.label.toLowerCase()}: ${draft.title}`,
         token: auth.token.trim(),
       });
 
-      window.localStorage.removeItem(writerStorage.draftKey);
-      setPublishState({
+      window.localStorage.removeItem(draftStorageKey(selectedCollection.id));
+      setDraft(emptyEntryDraft(selectedCollection));
+      clearSelectedImages();
+      setActionState({
         kind: "success",
         message: "Published to GitHub.",
         href: result.commit.html_url,
       });
     } catch (error) {
-      setPublishState({
+      setActionState({
         kind: "error",
         message: error instanceof Error ? error.message : "Publishing failed.",
+      });
+    }
+  }
+
+  async function createContentType() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setActionState({ kind: "working", message: "Preparing content type..." });
+
+    try {
+      const definition = buildCollectionDefinition(typeDraft, collections);
+      const typePath = `content/${definition.id}/_type.json`;
+      await ensurePathIsNew(typePath, auth.token.trim());
+
+      const result = await putFile({
+        path: typePath,
+        content: textToBase64(`${JSON.stringify(definition, null, 2)}\n`),
+        message: `Add content type: ${definition.pluralLabel}`,
+        token: auth.token.trim(),
+      });
+
+      setCollections((current) => orderCollectionDefinitions([...current, definition]));
+      setSelectedCollectionId(definition.id);
+      setTypeDraft(emptyTypeDraft());
+      setActionState({
+        kind: "success",
+        message: "Content type added to GitHub.",
+        href: result.commit.html_url,
+      });
+    } catch (error) {
+      setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not create content type.",
       });
     }
   }
@@ -239,7 +429,7 @@ export default function DashboardPage() {
               type="password"
               value={tokenInput}
               onChange={(event) => setTokenInput(event.target.value)}
-              className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
+              className={baseInputClass}
               placeholder="github_pat_..."
             />
           </label>
@@ -266,12 +456,14 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
-      <header className="flex flex-col gap-3 border-b border-zinc-200 pb-6 dark:border-zinc-800 md:flex-row md:items-end md:justify-between">
+      <header className="flex flex-col gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
             Dashboard
           </p>
-          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">New post</h1>
+          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">
+            New {selectedCollection.label.toLowerCase()}
+          </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Signed in as{" "}
             <Link href={auth.user.htmlUrl} target="_blank" className="underline">
@@ -279,22 +471,36 @@ export default function DashboardPage() {
             </Link>
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="flex min-w-56 flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">Type</span>
+            <select
+              value={selectedCollection.id}
+              onChange={(event) => setSelectedCollectionId(event.target.value)}
+              className={baseInputClass}
+            >
+              {collections.map((collection) => (
+                <option key={collection.id} value={collection.id}>
+                  {collection.pluralLabel}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button asChild variant="outline">
             <a href={tokenUrl} target="_blank" rel="noreferrer">
               <KeyRound />
-              Create token
+              Token
               <ExternalLink />
             </a>
           </Button>
-          <Button onClick={publishPost} disabled={publishState.kind === "working"}>
+          <Button onClick={publishEntry} disabled={actionState.kind === "working"}>
             <Send />
             Publish
           </Button>
         </div>
       </header>
 
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
             <div className="grid gap-4 md:grid-cols-2">
@@ -303,28 +509,8 @@ export default function DashboardPage() {
                 <input
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
-                  className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-                  placeholder="Post title"
-                />
-              </label>
-
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Date</span>
-                <input
-                  type="date"
-                  value={draft.date}
-                  onChange={(event) => updateDraft("date", event.target.value)}
-                  className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-                />
-              </label>
-
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Tags</span>
-                <input
-                  value={draft.tagsInput}
-                  onChange={(event) => updateDraft("tagsInput", event.target.value)}
-                  className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-                  placeholder="technology, society"
+                  className={baseInputClass}
+                  placeholder={`${selectedCollection.label} title`}
                 />
               </label>
 
@@ -334,16 +520,27 @@ export default function DashboardPage() {
                   value={draft.description}
                   onChange={(event) => updateDraft("description", event.target.value)}
                   rows={3}
-                  className="resize-y rounded-md border border-zinc-300 bg-background px-3 py-2 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
+                  className={textareaClass}
                   placeholder="Short summary for listings and metadata."
                 />
               </label>
+
+              {selectedCollection.fields.map((field) => (
+                <FieldInput
+                  key={field.name}
+                  field={field}
+                  value={draft.fieldValues[field.name] ?? defaultFieldValue(field)}
+                  onChange={(value) => updateFieldValue(field, value)}
+                />
+              ))}
             </div>
           </section>
 
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Body</h2>
+              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+                {selectedCollection.bodyLabel ?? "Body"}
+              </h2>
               <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">
                 <ImagePlus className="size-4" />
                 Add images
@@ -356,7 +553,7 @@ export default function DashboardPage() {
               onChange={(event) => updateDraft("body", event.target.value)}
               rows={18}
               className="min-h-[420px] w-full resize-y rounded-md border border-zinc-300 bg-background px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-              placeholder="Write the post in Markdown."
+              placeholder={selectedCollection.bodyPlaceholder ?? "Write in Markdown."}
             />
           </section>
 
@@ -386,6 +583,72 @@ export default function DashboardPage() {
               </div>
             </section>
           ) : null}
+
+          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">New content type</h2>
+              <Button type="button" variant="outline" size="sm" onClick={() => addTypeField()}>
+                <Plus />
+                Field
+              </Button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Singular label</span>
+                <input
+                  value={typeDraft.label}
+                  onChange={(event) => setTypeDraft((current) => ({ ...current, label: event.target.value }))}
+                  className={baseInputClass}
+                  placeholder="Reseña"
+                />
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Plural label</span>
+                <input
+                  value={typeDraft.pluralLabel}
+                  onChange={(event) => setTypeDraft((current) => ({ ...current, pluralLabel: event.target.value }))}
+                  className={baseInputClass}
+                  placeholder="Reseñas"
+                />
+              </label>
+
+              <label className="flex flex-col gap-2 md:col-span-2">
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Description</span>
+                <textarea
+                  value={typeDraft.description}
+                  onChange={(event) => setTypeDraft((current) => ({ ...current, description: event.target.value }))}
+                  rows={2}
+                  className={textareaClass}
+                  placeholder="Short summary for the collection page."
+                />
+              </label>
+            </div>
+
+            {typeDraft.fields.length > 0 ? (
+              <div className="mt-5 space-y-3">
+                {typeDraft.fields.map((field) => (
+                  <NewFieldEditor
+                    key={field.id}
+                    field={field}
+                    onChange={(nextField) => updateTypeField(field.id, nextField)}
+                    onRemove={() => removeTypeField(field.id)}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => addTypeField()}>
+                <ListPlus />
+                Add field
+              </Button>
+              <Button type="button" onClick={createContentType} disabled={actionState.kind === "working"}>
+                <FileText />
+                Create type
+              </Button>
+            </div>
+          </section>
         </div>
 
         <aside className="space-y-6">
@@ -400,11 +663,21 @@ export default function DashboardPage() {
                 <dt className="text-zinc-500 dark:text-zinc-400">Access</dt>
                 <dd className="text-zinc-900 dark:text-zinc-100">Write enabled</dd>
               </div>
+              <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">Types</dt>
+                <dd className="text-zinc-900 dark:text-zinc-100">{collectionsState.message || "Ready"}</dd>
+              </div>
             </dl>
-            <Button type="button" variant="outline" className="w-full" onClick={signOut}>
-              <LogOut />
-              Sign out
-            </Button>
+            <div className="grid gap-2">
+              <Button type="button" variant="outline" className="w-full" onClick={refreshCollections}>
+                <RefreshCw />
+                Refresh types
+              </Button>
+              <Button type="button" variant="outline" className="w-full" onClick={signOut}>
+                <LogOut />
+                Sign out
+              </Button>
+            </div>
           </section>
 
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
@@ -419,19 +692,27 @@ export default function DashboardPage() {
                 <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepository.branch}</dd>
               </div>
               <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">Type</dt>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{selectedCollection.id}</dd>
+              </div>
+              <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">Route</dt>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">/{selectedCollection.route}</dd>
+              </div>
+              <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Slug</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{slug || "post-title"}</dd>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{slug || "entry-title"}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Path</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">
-                  posts/{slug || "post-title"}/page.mdx
-                </dd>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{entryPath}</dd>
               </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Tags</dt>
-                <dd className="text-zinc-900 dark:text-zinc-100">{tags.length > 0 ? tags.join(", ") : "None"}</dd>
-              </div>
+              {selectedTags.length > 0 ? (
+                <div>
+                  <dt className="text-zinc-500 dark:text-zinc-400">Tags</dt>
+                  <dd className="text-zinc-900 dark:text-zinc-100">{selectedTags.join(", ")}</dd>
+                </div>
+              ) : null}
             </dl>
           </section>
 
@@ -442,17 +723,17 @@ export default function DashboardPage() {
             </pre>
           </section>
 
-          {publishState.message ? (
+          {actionState.message ? (
             <section
               className={`rounded-lg border p-4 text-sm ${
-                publishState.kind === "error"
+                actionState.kind === "error"
                   ? "border-red-300 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                   : "border-zinc-200 bg-background text-zinc-800 dark:border-zinc-800 dark:text-zinc-200"
               }`}
             >
-              <p>{publishState.message}</p>
-              {publishState.href ? (
-                <Link href={publishState.href} target="_blank" className="mt-2 inline-flex items-center gap-1 underline">
+              <p>{actionState.message}</p>
+              {actionState.href ? (
+                <Link href={actionState.href} target="_blank" className="mt-2 inline-flex items-center gap-1 underline">
                   View commit
                   <ExternalLink className="size-3" />
                 </Link>
@@ -463,15 +744,277 @@ export default function DashboardPage() {
       </section>
     </main>
   );
+
+  function addTypeField() {
+    setTypeDraft((current) => ({
+      ...current,
+      fields: [
+        ...current.fields,
+        {
+          id: randomId(),
+          label: "",
+          type: "text",
+          required: false,
+          placeholder: "",
+          optionsInput: "",
+        },
+      ],
+    }));
+  }
+
+  function updateTypeField(id: string, nextField: NewFieldDraft) {
+    setTypeDraft((current) => ({
+      ...current,
+      fields: current.fields.map((field) => (field.id === id ? nextField : field)),
+    }));
+  }
+
+  function removeTypeField(id: string) {
+    setTypeDraft((current) => ({
+      ...current,
+      fields: current.fields.filter((field) => field.id !== id),
+    }));
+  }
 }
 
-function buildMdx(draft: DraftState, tags: string[]) {
-  return `---\ntitle: ${JSON.stringify(draft.title.trim())}\ndate: ${JSON.stringify(draft.date)}\ndescription: ${JSON.stringify(
-    draft.description.trim(),
-  )}\ntags: [${tags.map((tag) => JSON.stringify(tag)).join(", ")}]\n---\n\n${draft.body.trim()}\n`;
+function FieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: ContentFieldDefinition;
+  value: FieldDraftValue;
+  onChange: (value: FieldDraftValue) => void;
+}) {
+  if (field.type === "boolean") {
+    return (
+      <label className="flex min-h-11 items-center gap-3 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(event) => onChange(event.target.checked)}
+          className="size-4 rounded border-zinc-300"
+        />
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{field.label}</span>
+      </label>
+    );
+  }
+
+  if (field.type === "textarea") {
+    return (
+      <label className="flex flex-col gap-2 md:col-span-2">
+        <FieldLabel field={field} />
+        <textarea
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+          rows={3}
+          className={textareaClass}
+          placeholder={field.placeholder}
+        />
+      </label>
+    );
+  }
+
+  if (field.type === "select") {
+    return (
+      <label className="flex flex-col gap-2">
+        <FieldLabel field={field} />
+        <select value={String(value)} onChange={(event) => onChange(event.target.value)} className={baseInputClass}>
+          <option value="">Select...</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  return (
+    <label className="flex flex-col gap-2">
+      <FieldLabel field={field} />
+      <input
+        type={field.type === "date" ? "date" : "text"}
+        value={String(value)}
+        onChange={(event) => onChange(event.target.value)}
+        className={baseInputClass}
+        placeholder={field.placeholder}
+      />
+    </label>
+  );
 }
 
-function validateDraft(draft: DraftState, slug: string, tags: string[], token: string) {
+function FieldLabel({ field }: { field: ContentFieldDefinition }) {
+  return (
+    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+      {field.label}
+      {field.required ? <span className="text-red-600 dark:text-red-400"> *</span> : null}
+    </span>
+  );
+}
+
+function NewFieldEditor({
+  field,
+  onChange,
+  onRemove,
+}: {
+  field: NewFieldDraft;
+  onChange: (field: NewFieldDraft) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 md:grid-cols-[minmax(0,1fr)_160px_auto]">
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Field label</span>
+        <input
+          value={field.label}
+          onChange={(event) => onChange({ ...field, label: event.target.value })}
+          className={baseInputClass}
+          placeholder="Rating"
+        />
+      </label>
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Type</span>
+        <select
+          value={field.type}
+          onChange={(event) => onChange({ ...field, type: event.target.value as ContentFieldType })}
+          className={baseInputClass}
+        >
+          {contentFieldTypes.map((fieldType) => (
+            <option key={fieldType} value={fieldType}>
+              {fieldType}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="flex items-end gap-2">
+        <label className="flex h-11 items-center gap-2 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
+          <input
+            type="checkbox"
+            checked={field.required}
+            onChange={(event) => onChange({ ...field, required: event.target.checked })}
+            className="size-4 rounded border-zinc-300"
+          />
+          <span className="text-sm text-zinc-800 dark:text-zinc-200">Required</span>
+        </label>
+        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
+          <Trash2 />
+          <span className="sr-only">Remove field</span>
+        </Button>
+      </div>
+      <label className="flex flex-col gap-2 md:col-span-2">
+        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Placeholder</span>
+        <input
+          value={field.placeholder}
+          onChange={(event) => onChange({ ...field, placeholder: event.target.value })}
+          className={baseInputClass}
+          placeholder="Optional"
+        />
+      </label>
+      {field.type === "select" ? (
+        <label className="flex flex-col gap-2 md:col-span-3">
+          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Options</span>
+          <input
+            value={field.optionsInput}
+            onChange={(event) => onChange({ ...field, optionsInput: event.target.value })}
+            className={baseInputClass}
+            placeholder="Draft, Published, Archived"
+          />
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function emptyEntryDraft(collection: CollectionDefinition): EntryDraft {
+  return {
+    title: "",
+    description: "",
+    fieldValues: Object.fromEntries(collection.fields.map((field) => [field.name, defaultFieldValue(field)])),
+    body: "",
+  };
+}
+
+function defaultFieldValue(field: ContentFieldDefinition): FieldDraftValue {
+  if (field.type === "boolean") {
+    return false;
+  }
+
+  if (field.type === "date") {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  return "";
+}
+
+function parseStoredDraft(rawDraft: string, collection: CollectionDefinition) {
+  try {
+    const parsed = JSON.parse(rawDraft) as Partial<EntryDraft>;
+    const fallback = emptyEntryDraft(collection);
+    const parsedFieldValues = parsed.fieldValues && typeof parsed.fieldValues === "object" ? parsed.fieldValues : {};
+
+    return {
+      title: typeof parsed.title === "string" ? parsed.title : "",
+      description: typeof parsed.description === "string" ? parsed.description : "",
+      body: typeof parsed.body === "string" ? parsed.body : "",
+      fieldValues: {
+        ...fallback.fieldValues,
+        ...parsedFieldValues,
+      },
+    };
+  } catch {
+    window.localStorage.removeItem(draftStorageKey(collection.id));
+    return emptyEntryDraft(collection);
+  }
+}
+
+function draftStorageKey(collectionId: string) {
+  return `${writerStorage.draftKey}:${collectionId}`;
+}
+
+function buildMdx(collection: CollectionDefinition, draft: EntryDraft) {
+  const frontmatterEntries: Array<[string, unknown]> = [
+    ["title", draft.title.trim()],
+    ["description", draft.description.trim()],
+    ...collection.fields.map((field): [string, unknown] => [field.name, parseFieldValue(field, draft.fieldValues[field.name])]),
+  ];
+
+  return `---\n${frontmatterEntries
+    .filter(([, value]) => !isEmptyFrontmatterValue(value))
+    .map(([key, value]) => `${key}: ${serializeFrontmatterValue(value)}`)
+    .join("\n")}\n---\n\n${draft.body.trim()}\n`;
+}
+
+function parseFieldValue(field: ContentFieldDefinition, value: FieldDraftValue | undefined) {
+  if (field.type === "boolean") {
+    return Boolean(value);
+  }
+
+  if (field.type === "list" || field.type === "tags") {
+    return parseListInput(String(value ?? ""));
+  }
+
+  return String(value ?? "").trim();
+}
+
+function serializeFrontmatterValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => JSON.stringify(item)).join(", ")}]`;
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+
+  return JSON.stringify(value);
+}
+
+function isEmptyFrontmatterValue(value: unknown) {
+  return value === "" || (Array.isArray(value) && value.length === 0);
+}
+
+function validateEntryDraft(collection: CollectionDefinition, draft: EntryDraft, slug: string, token: string) {
   if (!token.trim()) {
     throw new Error("Add a GitHub token before publishing.");
   }
@@ -484,61 +1027,176 @@ function validateDraft(draft: DraftState, slug: string, tags: string[], token: s
     throw new Error("The title needs at least one letter or number for the URL slug.");
   }
 
-  if (!draft.date) {
-    throw new Error("Add a date before publishing.");
-  }
-
   if (!draft.description.trim()) {
     throw new Error("Add a description before publishing.");
   }
 
-  if (tags.length === 0) {
-    throw new Error("Add at least one tag before publishing.");
+  for (const field of collection.fields) {
+    const value = parseFieldValue(field, draft.fieldValues[field.name]);
+
+    if (field.required && isEmptyFrontmatterValue(value)) {
+      throw new Error(`Add ${field.label.toLowerCase()} before publishing.`);
+    }
   }
 
   if (!draft.body.trim()) {
-    throw new Error("Write the post body before publishing.");
+    throw new Error("Write the body before publishing.");
   }
 }
 
-function parseTags(tagsInput: string) {
-  return tagsInput
+function buildCollectionDefinition(typeDraft: TypeDraft, existingCollections: CollectionDefinition[]) {
+  const label = typeDraft.label.trim();
+  const pluralLabel = typeDraft.pluralLabel.trim();
+  const route = normalizeContentSegment(pluralLabel || label);
+
+  if (!label) {
+    throw new Error("Add a singular label for the content type.");
+  }
+
+  if (!pluralLabel) {
+    throw new Error("Add a plural label for the content type.");
+  }
+
+  if (!route || !isSafeContentSegment(route)) {
+    throw new Error("The plural label needs at least one letter or number for the route.");
+  }
+
+  if (isReservedCollectionRoute(route)) {
+    throw new Error(`/${route} is reserved. Choose a different plural label.`);
+  }
+
+  if (existingCollections.some((collection) => collection.id === route || collection.route === route)) {
+    throw new Error(`A content type already uses ${route}.`);
+  }
+
+  const fields = typeDraft.fields.map((field) => buildFieldDefinition(field));
+  const seenFieldNames = new Set<string>();
+
+  for (const field of fields) {
+    if (seenFieldNames.has(field.name)) {
+      throw new Error(`Field "${field.label}" creates a duplicate frontmatter key.`);
+    }
+
+    seenFieldNames.add(field.name);
+  }
+
+  return normalizeCollectionDefinition({
+    id: route,
+    label,
+    pluralLabel,
+    description: typeDraft.description.trim(),
+    route,
+    bodyLabel: "Cuerpo",
+    bodyPlaceholder: "Escribe en Markdown.",
+    sort: fields.find((field) => field.type === "date") ? { field: fields.find((field) => field.type === "date")?.name, direction: "desc" } : undefined,
+    fields,
+  });
+}
+
+function buildFieldDefinition(field: NewFieldDraft): ContentFieldDefinition {
+  const label = field.label.trim();
+  const name = fieldNameFromLabel(label);
+
+  if (!label) {
+    throw new Error("Every custom field needs a label.");
+  }
+
+  if (!name || !isSafeFieldName(name)) {
+    throw new Error(`Field "${label}" needs a safe frontmatter key.`);
+  }
+
+  const options = parseListInput(field.optionsInput);
+
+  if (field.type === "select" && options.length === 0) {
+    throw new Error(`Field "${label}" needs at least one select option.`);
+  }
+
+  return {
+    name,
+    label,
+    type: field.type,
+    required: field.required,
+    placeholder: field.placeholder.trim() || undefined,
+    options: field.type === "select" ? options : undefined,
+  };
+}
+
+function getTagsForCollection(collection: CollectionDefinition, draft: EntryDraft) {
+  const tagsField = collection.fields.find((field) => field.type === "tags");
+
+  if (!tagsField) {
+    return [];
+  }
+
+  return parseListInput(String(draft.fieldValues[tagsField.name] ?? ""));
+}
+
+function parseListInput(value: string) {
+  return value
     .split(",")
-    .map((tag) => tag.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
 }
 
-function slugify(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+async function loadCollectionsFromGitHub(token: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content?ref=${writerRepository.branch}`,
+    {
+      headers: githubHeaders(token),
+    },
+  );
 
-function sanitizeFileName(fileName: string) {
-  const parts = fileName.split(".");
-  const extension = parts.length > 1 ? parts.pop()?.toLowerCase() : "";
-  const baseName = slugify(parts.join(".") || "image") || "image";
-
-  return extension ? `${baseName}.${extension}` : baseName;
-}
-
-function uniqueFileName(fileName: string, existingNames: Set<string>, index: number) {
-  const prefix = String(index).padStart(2, "0");
-  const parts = fileName.split(".");
-  const extension = parts.length > 1 ? `.${parts.pop()}` : "";
-  const baseName = parts.join(".") || "image";
-  let candidate = `${prefix}-${baseName}${extension}`;
-  let suffix = 2;
-
-  while (existingNames.has(candidate)) {
-    candidate = `${prefix}-${baseName}-${suffix}${extension}`;
-    suffix += 1;
+  if (response.status === 404) {
+    return [postCollectionDefinition];
   }
 
-  return candidate;
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const items = (await response.json()) as GitHubContentItem[] | GitHubContentItem;
+
+  if (!Array.isArray(items)) {
+    return [postCollectionDefinition];
+  }
+
+  const definitions = (
+    await Promise.all(
+      items
+        .filter((item) => item.type === "dir" && item.name)
+        .map((item) => loadCollectionDefinitionFromGitHub(item.name as string, token)),
+    )
+  ).filter((definition): definition is CollectionDefinition => Boolean(definition));
+  const hasPosts = definitions.some((definition) => definition.id === postCollectionDefinition.id);
+
+  return orderCollectionDefinitions(hasPosts ? definitions : [postCollectionDefinition, ...definitions]);
+}
+
+async function loadCollectionDefinitionFromGitHub(id: string, token: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content/${encodeGitHubPath(id)}/_type.json?ref=${
+      writerRepository.branch
+    }`,
+    {
+      headers: githubHeaders(token),
+    },
+  );
+
+  if (response.status === 404) {
+    return undefined;
+  }
+
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const file = (await response.json()) as GitHubContentItem;
+
+  if (file.encoding !== "base64" || !file.content) {
+    return undefined;
+  }
+
+  return normalizeCollectionDefinition(JSON.parse(base64ToText(file.content)));
 }
 
 async function ensurePathIsNew(path: string, token: string) {
@@ -554,7 +1212,7 @@ async function ensurePathIsNew(path: string, token: string) {
   }
 
   if (response.ok) {
-    throw new Error(`A post already exists at ${path}. Change the title to create a different slug.`);
+    throw new Error(`A file already exists at ${path}. Change the title or type label.`);
   }
 
   throw new Error(await githubErrorMessage(response));
@@ -609,4 +1267,40 @@ function bytesToBase64(bytes: Uint8Array) {
   }
 
   return btoa(binary);
+}
+
+function base64ToText(base64: string) {
+  const binary = atob(base64.replace(/\s/g, ""));
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function sanitizeFileName(fileName: string) {
+  const parts = fileName.split(".");
+  const extension = parts.length > 1 ? parts.pop()?.toLowerCase() : "";
+  const baseName = normalizeContentSegment(parts.join(".") || "image") || "image";
+
+  return extension ? `${baseName}.${extension}` : baseName;
+}
+
+function uniqueFileName(fileName: string, existingNames: Set<string>, index: number) {
+  const prefix = String(index).padStart(2, "0");
+  const parts = fileName.split(".");
+  const extension = parts.length > 1 ? `.${parts.pop()}` : "";
+  const baseName = parts.join(".") || "image";
+  let candidate = `${prefix}-${baseName}${extension}`;
+  let suffix = 2;
+
+  while (existingNames.has(candidate)) {
+    candidate = `${prefix}-${baseName}-${suffix}${extension}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function randomId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
 }

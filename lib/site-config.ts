@@ -38,7 +38,7 @@ export const siteConfig = {
     },
     token: {
       name: "cyberpunga writer",
-      description: "Create and edit posts for cyberpunga.github.io",
+      description: "Create and edit content for cyberpunga.github.io",
       expiresInDays: 90,
       requiredPermissions: {
         contents: "write",

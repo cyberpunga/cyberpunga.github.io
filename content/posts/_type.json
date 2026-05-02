@@ -1,0 +1,28 @@
+{
+  "id": "posts",
+  "label": "Artículo",
+  "pluralLabel": "Artículos",
+  "description": "Exploraciones críticas en la intersección de tecnología, sociedad y pensamiento latinoamericano.",
+  "route": "posts",
+  "bodyLabel": "Cuerpo",
+  "bodyPlaceholder": "Escribe el artículo en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": true,
+      "placeholder": "tecnología, sociedad"
+    }
+  ]
+}
