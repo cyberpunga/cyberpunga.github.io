@@ -77,6 +77,10 @@ export async function validateGitHubToken(token: string): Promise<GitHubAuthUser
   });
 
   if (!userResponse.ok) {
+    if (userResponse.status === 401) {
+      throw new Error(await githubInvalidTokenErrorMessage(userResponse));
+    }
+
     throw new Error(await githubErrorMessage(userResponse));
   }
 
@@ -212,6 +216,12 @@ async function githubContentsWriteErrorMessage(response: Response) {
   const message = await githubErrorMessage(response);
 
   return `${message}. Create a fine-grained GitHub token for ${writerRepositoryFullName} with Repository access set to ${writerRepository.name}, Repository permissions > Contents set to Read and write, and any required organization approval completed.`;
+}
+
+async function githubInvalidTokenErrorMessage(response: Response) {
+  const message = await githubErrorMessage(response);
+
+  return `${message}. Paste a new complete fine-grained GitHub token. This token is missing, expired, revoked, or copied incorrectly.`;
 }
 
 function buildGitHubUserMdx(user: GitHubAuthUser) {
