@@ -160,18 +160,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     function readRouteState() {
-      const params = new URLSearchParams(window.location.search);
-      setRouteState({
-        collectionId: normalizeContentSegment(params.get("type") ?? ""),
-        entrySlug: normalizeContentSegment(params.get("entry") ?? ""),
-      });
+      setRouteState(readDashboardRouteState());
     }
 
     readRouteState();
     window.addEventListener("popstate", readRouteState);
+    window.addEventListener("hashchange", readRouteState);
 
     return () => {
       window.removeEventListener("popstate", readRouteState);
+      window.removeEventListener("hashchange", readRouteState);
     };
   }, []);
 
@@ -440,15 +438,16 @@ export default function DashboardPage() {
 
   function updateDashboardUrl(collectionId: string, entrySlug?: string) {
     const url = new URL(window.location.href);
-    url.searchParams.set("type", collectionId);
+    url.searchParams.delete("type");
+    url.searchParams.delete("entry");
+    url.hash = entrySlug
+      ? `/${encodeURIComponent(collectionId)}/${encodeURIComponent(entrySlug)}`
+      : `/${encodeURIComponent(collectionId)}`;
 
-    if (entrySlug) {
-      url.searchParams.set("entry", entrySlug);
-    } else {
-      url.searchParams.delete("entry");
+    if (url.toString() !== window.location.href) {
+      window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
     setRouteState({ collectionId, entrySlug: entrySlug ?? "" });
   }
 
@@ -739,20 +738,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex min-w-56 flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">Type</span>
-            <select
-              value={selectedCollection.id}
-              onChange={(event) => selectCollection(event.target.value)}
-              className={baseInputClass}
-            >
-              {collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.pluralLabel}
-                </option>
-              ))}
-            </select>
-          </label>
           <Button asChild variant="outline">
             <a href={tokenUrl} target="_blank" rel="noreferrer">
               <KeyRound />
@@ -923,6 +908,47 @@ export default function DashboardPage() {
         </div>
 
         <aside className="space-y-6">
+          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Content types</h2>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {collectionsState.message || "Ready"}
+                </p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={refreshCollections}>
+                <RefreshCw />
+                <span className="sr-only">Refresh types</span>
+              </Button>
+            </div>
+            <div className="grid gap-2">
+              {collections.map((collection) => (
+                <button
+                  key={collection.id}
+                  type="button"
+                  onClick={() => selectCollection(collection.id)}
+                  className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                    selectedCollection.id === collection.id
+                      ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-900"
+                      : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  }`}
+                >
+                  <span className="flex items-start gap-2">
+                    <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                        {collection.pluralLabel}
+                      </span>
+                      <span className="mt-1 block truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                        /{collection.route}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -1295,6 +1321,28 @@ function parseStoredDraft(rawDraft: string, collection: CollectionDefinition) {
     window.localStorage.removeItem(draftStorageKey(collection.id));
     return emptyEntryDraft(collection);
   }
+}
+
+function readDashboardRouteState() {
+  const hashPath = window.location.hash.replace(/^#\/?/, "");
+  const hashSegments = hashPath
+    .split("/")
+    .map((segment) => decodeURIComponent(segment).trim())
+    .filter(Boolean);
+
+  if (hashSegments[0]) {
+    return {
+      collectionId: normalizeContentSegment(hashSegments[0]),
+      entrySlug: normalizeContentSegment(hashSegments[1] ?? ""),
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+
+  return {
+    collectionId: normalizeContentSegment(params.get("type") ?? ""),
+    entrySlug: normalizeContentSegment(params.get("entry") ?? ""),
+  };
 }
 
 function parseMdxDraft(collection: CollectionDefinition, mdx: string): EntryDraft {

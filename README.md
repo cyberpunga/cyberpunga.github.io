@@ -121,7 +121,7 @@ Y referenciarse desde MDX:
 ![Descripción de la imagen](./images/01.jpeg)
 ```
 
-También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con `/dashboard?type=<coleccion>&entry=<slug>`.
+También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con rutas cliente compatibles con exportación estática como `/dashboard#/<coleccion>/<slug>`.
 
 El publicador crea entradas con esta misma estructura:
 
