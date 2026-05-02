@@ -70,6 +70,10 @@ posts/
   <slug>/
     page.mdx            Contenido del artículo
     images/             Imágenes locales del artículo
+.agents/
+  skills/
+    project-doc-maintainer/
+                         Skill local de Codex para mantener AGENTS.md y README.md
 ```
 
 ## Publicar un artículo

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Project Doc Maintainer"
+  short_description: "Keep AGENTS.md and README.md aligned"
+  default_prompt: "Use $project-doc-maintainer to check whether AGENTS.md or README.md need updates after this repository change."
+
+policy:
+  allow_implicit_invocation: true

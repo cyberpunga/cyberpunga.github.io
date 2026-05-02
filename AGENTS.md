@@ -17,6 +17,11 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - Shared UI lives in `components/`.
 - shadcn-style primitives live in `components/ui/`.
 - Site-wide config lives in `lib/site-config.ts`.
+- Repo-local Codex skills live in `.agents/skills/`.
+
+## Local Skills
+
+- `.agents/skills/project-doc-maintainer/` helps decide whether `AGENTS.md` or `README.md` need updates after tasks that change setup, architecture, workflows, deployment, verification, or important gotchas.
 
 ## Content Rules
 
