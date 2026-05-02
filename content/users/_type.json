@@ -1,0 +1,70 @@
+{
+  "id": "users",
+  "label": "User",
+  "pluralLabel": "Users",
+  "description": "Public profiles for cyberpunga users.",
+  "route": "users",
+  "bodyLabel": "Bio",
+  "bodyPlaceholder": "Write the user's public bio in Markdown.",
+  "sort": {
+    "field": "name",
+    "direction": "asc"
+  },
+  "fields": [
+    {
+      "name": "name",
+      "label": "Nombre",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "handle",
+      "label": "Handle",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "avatar_url",
+      "label": "Avatar URL",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "github_url",
+      "label": "GitHub URL",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "website",
+      "label": "Website",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "x_handle",
+      "label": "X/Twitter handle",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "location",
+      "label": "Location",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "hireable",
+      "label": "Hireable",
+      "type": "boolean",
+      "required": false
+    },
+    {
+      "name": "social_links",
+      "label": "Social links",
+      "type": "list",
+      "required": true,
+      "placeholder": "https://github.com/user, https://example.com"
+    }
+  ]
+}
