@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { GitHubAuthUser, clearGitHubToken, getStoredGitHubToken, githubAuthChangeEvent, validateGitHubToken } from "./github-auth";
+import { GitHubAuthUser, clearGitHubToken, getStoredGitHubToken, githubAuthChangeEvent, saveGitHubToken, validateGitHubToken } from "./github-auth";
 
 type AuthState =
   | { kind: "checking" }
@@ -69,7 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuth({ kind: "checking" });
     try {
       const user = await validateGitHubToken(token);
-      setAuth({ kind: "signed-in", user, token });
+      saveGitHubToken(token.trim());
+      setAuth({ kind: "signed-in", user, token: token.trim() });
     } catch {
       setAuth({ kind: "invalid" });
     }
