@@ -1,13 +1,12 @@
 "use client";
 
-import { clearGitHubToken } from "@/lib/github-auth";
 import { useAuth } from "@/lib/github-auth-context";
 import { LogOut, PenLine, UserRound } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui/button";
 
 export function GitHubAuthStatus() {
-  const { auth } = useAuth();
+  const { auth, signOut } = useAuth();
 
   if (auth.kind === "checking") {
     return <span className="hidden text-sm text-zinc-500 dark:text-zinc-400 sm:inline">Checking auth...</span>;
@@ -23,7 +22,7 @@ export function GitHubAuthStatus() {
             <span className="sm:hidden">Dashboard</span>
           </Link>
         </Button>
-        <Button type="button" variant="ghost" size="icon" onClick={clearGitHubToken}>
+        <Button type="button" variant="ghost" size="icon" onClick={signOut}>
           <LogOut />
           <span className="sr-only">Sign out</span>
         </Button>

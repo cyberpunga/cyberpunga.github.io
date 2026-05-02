@@ -22,14 +22,22 @@ export function getStoredGitHubToken() {
   return window.localStorage.getItem(writerStorage.tokenKey) ?? "";
 }
 
-export function saveGitHubToken(token: string) {
+type TokenStorageOptions = {
+  notify?: boolean;
+};
+
+export function saveGitHubToken(token: string, options: TokenStorageOptions = {}) {
   window.localStorage.setItem(writerStorage.tokenKey, token);
-  notifyGitHubAuthChanged();
+  if (options.notify ?? true) {
+    notifyGitHubAuthChanged();
+  }
 }
 
-export function clearGitHubToken() {
+export function clearGitHubToken(options: TokenStorageOptions = {}) {
   window.localStorage.removeItem(writerStorage.tokenKey);
-  notifyGitHubAuthChanged();
+  if (options.notify ?? true) {
+    notifyGitHubAuthChanged();
+  }
 }
 
 export function notifyGitHubAuthChanged() {

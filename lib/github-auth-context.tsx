@@ -1,7 +1,15 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { GitHubAuthUser, clearGitHubToken, getStoredGitHubToken, githubAuthChangeEvent, saveGitHubToken, validateGitHubToken } from "./github-auth";
+import {
+  GitHubAuthUser,
+  clearGitHubToken,
+  getStoredGitHubToken,
+  githubAuthChangeEvent,
+  saveGitHubToken,
+  validateGitHubToken,
+  writerStorage,
+} from "./github-auth";
 
 type AuthState =
   | { kind: "checking" }
@@ -27,13 +35,23 @@ export function useAuth() {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [auth, setAuth] = useState<AuthState>({ kind: "checking" });
-  const cancelledRef = useRef(false);
+  const latestRequestRef = useRef(0);
 
-  const refreshSession = useCallback(async () => {
-    const token = getStoredGitHubToken();
+  const refreshSession = useCallback(async (event?: Event) => {
+    if (event instanceof StorageEvent && event.key !== writerStorage.tokenKey) {
+      return;
+    }
+
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
+    const token = getStoredGitHubToken().trim();
+
+    const isLatestRequest = () => latestRequestRef.current === requestId;
 
     if (!token) {
-      setAuth({ kind: "signed-out" });
+      if (isLatestRequest()) {
+        setAuth({ kind: "signed-out" });
+      }
       return;
     }
 
@@ -41,43 +59,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const user = await validateGitHubToken(token);
-      if (!cancelledRef.current) {
+      if (isLatestRequest()) {
         setAuth({ kind: "signed-in", user, token });
       }
     } catch {
-      if (!cancelledRef.current) {
+      if (isLatestRequest()) {
         setAuth({ kind: "invalid" });
       }
     }
   }, []);
 
   useEffect(() => {
-    cancelledRef.current = false;
     refreshSession();
 
     window.addEventListener(githubAuthChangeEvent, refreshSession);
     window.addEventListener("storage", refreshSession);
 
     return () => {
-      cancelledRef.current = true;
+      latestRequestRef.current += 1;
       window.removeEventListener(githubAuthChangeEvent, refreshSession);
       window.removeEventListener("storage", refreshSession);
     };
   }, [refreshSession]);
 
   const signIn = useCallback(async (token: string) => {
+    const trimmedToken = token.trim();
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
+    const isLatestRequest = () => latestRequestRef.current === requestId;
+
     setAuth({ kind: "checking" });
     try {
-      const user = await validateGitHubToken(token);
-      saveGitHubToken(token.trim());
-      setAuth({ kind: "signed-in", user, token: token.trim() });
+      const user = await validateGitHubToken(trimmedToken);
+      if (isLatestRequest()) {
+        saveGitHubToken(trimmedToken, { notify: false });
+        setAuth({ kind: "signed-in", user, token: trimmedToken });
+      }
     } catch {
-      setAuth({ kind: "invalid" });
+      if (isLatestRequest()) {
+        setAuth({ kind: "invalid" });
+      }
     }
   }, []);
 
   const signOut = useCallback(() => {
-    clearGitHubToken();
+    latestRequestRef.current += 1;
+    clearGitHubToken({ notify: false });
     setAuth({ kind: "signed-out" });
   }, []);
 
