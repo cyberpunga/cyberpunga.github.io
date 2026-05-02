@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ModeToggle } from "./mode-toggle";
 import { siteConfig } from "@/lib/site-config";
 import { GitHubAuthStatus } from "./github-auth-status";
 
@@ -23,7 +22,6 @@ export function SiteHeader() {
             </Link>
           ))}
           <GitHubAuthStatus />
-          <ModeToggle />
         </nav>
       </div>
     </header>

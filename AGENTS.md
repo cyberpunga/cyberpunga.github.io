@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is `cyberpunga`, a static editorial site built with Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, MDX, and `next-themes`.
+This is `cyberpunga`, a static editorial site built with Next.js 15 App Router, React 19, TypeScript, Tailwind CSS 4, and MDX.
 
 The site exports static HTML via `output: "export"` and is deployed to GitHub Pages from `out/`.
 

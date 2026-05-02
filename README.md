@@ -9,7 +9,6 @@
 - TypeScript
 - Tailwind CSS 4
 - MDX con frontmatter
-- `next-themes` para modo claro/oscuro
 - Componentes estilo shadcn/ui
 - Exportación estática con `output: "export"`
 
