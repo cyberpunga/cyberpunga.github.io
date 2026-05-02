@@ -1,59 +1,52 @@
-import React from "react";
 import Link from "next/link";
-// import { notFound } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-// import type { Metadata } from "next";
-// import { siteConfig } from "@/lib/site-config";
+import type { Metadata } from "next";
+import { siteConfig } from "@/lib/site-config";
 import { ProseContainer } from "@/components/prose-container";
-import { FrontMatter, getPosts } from "../page";
 import { Tag } from "@/components/blog-post-tag";
 import { BlogPostCard } from "@/components/blog-post-card";
+import { getPostBySlug, getPostModule, getPosts, getPostSlugs } from "@/lib/posts";
 
 export async function generateStaticParams() {
-  const blogPosts = await getPosts();
-  return blogPosts;
+  return getPostSlugs();
 }
 
-// export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
-//   const posts = await getPosts();
-//   const blogPosts = posts.map((post) => post.frontmatter);
-//   const post = blogPosts.find((post) => (post.slug || slugify(post.title)) === params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await getPostBySlug(slug);
 
-//   if (!post) {
-//     return {
-//       title: "Post Not Found",
-//     };
-//   }
+  if (!post) {
+    return {
+      title: "Artículo no encontrado",
+    };
+  }
 
-//   return {
-//     title: post.title,
-//     description: post.description,
-//     openGraph: {
-//       title: post.title,
-//       description: post.description,
-//       type: "article",
-//       url: `${siteConfig.url}/posts/${params.slug}`,
-//       publishedTime: post.date,
-//     },
-//   };
-// }
+  return {
+    title: post.frontmatter.title,
+    description: post.frontmatter.description,
+    openGraph: {
+      title: post.frontmatter.title,
+      description: post.frontmatter.description,
+      type: "article",
+      url: `${siteConfig.url}/posts/${slug}`,
+      publishedTime: post.frontmatter.date,
+      tags: post.frontmatter.tags,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.frontmatter.title,
+      description: post.frontmatter.description,
+    },
+  };
+}
 
 export const dynamicParams = false;
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const { default: Post, frontmatter }: { default: React.ComponentType; frontmatter: FrontMatter } = await import(
-    `@/posts/${slug}/page.mdx`
-  );
+  const { default: Post, frontmatter } = await getPostModule(slug);
 
   const blogPosts = await getPosts();
-  console.log({ blogPosts });
-  //   const blogPosts = posts.map((post) => post.frontmatter);
-  //   const post = blogPosts.find((post) => post.slug === slug);
-
-  //   if (!post) {
-  //     notFound();
-  //   }
 
   // Find the index of the current post
   const currentIndex = blogPosts.findIndex((p) => p.slug === slug);
@@ -61,9 +54,6 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   // Get previous and next posts
   const prevPost = currentIndex > 0 ? blogPosts[currentIndex - 1] : null;
   const nextPost = currentIndex < blogPosts.length - 1 ? blogPosts[currentIndex + 1] : null;
-
-  // Convert markdown to HTML (simple approach)
-  //   const contentHtml = markdownToHtml(post.content);
 
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950">

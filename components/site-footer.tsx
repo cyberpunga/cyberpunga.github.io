@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { siteConfig } from "@/lib/site-config";
-import { getPosts } from "@/app/posts/page";
+import { getPosts } from "@/lib/posts";
 import { Tag } from "./blog-post-tag";
 
 export async function SiteFooter() {

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { formatDate } from "@/lib/utils";
 
-import { getPosts } from "./posts/page";
+import { getPosts } from "@/lib/posts";
 import { AsciiAnimation } from "@/components/ascii-animation";
 import { BlogPostCard } from "@/components/blog-post-card";
 
