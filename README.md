@@ -38,6 +38,12 @@ Abre:
 http://localhost:3000
 ```
 
+El publicador de artículos queda disponible en:
+
+```text
+http://localhost:3000/write
+```
+
 ## Scripts
 
 ```bash
@@ -58,6 +64,8 @@ Notas:
 ```text
 app/
   page.tsx              Página principal
+  write/
+    page.tsx            Publicador estático que escribe posts vía GitHub API
   posts/
     page.tsx            Índice de artículos
     posts-list.tsx      Filtro cliente por tag
@@ -65,7 +73,7 @@ app/
 components/             Componentes compartidos
 lib/
   posts.ts              Carga, ordenamiento y metadata de posts
-  site-config.ts        Configuración del sitio
+  site-config.ts        Configuración del sitio y del publicador
 posts/
   <slug>/
     page.mdx            Contenido del artículo
@@ -109,6 +117,17 @@ Y referenciarse desde MDX:
 ![Descripción de la imagen](./images/01.jpeg)
 ```
 
+También se pueden crear artículos desde `/write`. Es un publicador estático del propio sitio: genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`.
+
+El publicador crea entradas con esta misma estructura:
+
+```text
+posts/<slug>/page.mdx
+posts/<slug>/images/
+```
+
+Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/write` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor si elige recordarlo.
+
 ## Tags
 
 Los tags se muestran en las tarjetas y en el pie del sitio. El índice de artículos permite filtrar con query string:
@@ -136,8 +155,8 @@ Antes de publicar cambios, corre:
 
 ```bash
 pnpm lint
-pnpm exec tsc --noEmit
 pnpm build
+pnpm exec tsc --noEmit
 ```
 
 ## Despliegue

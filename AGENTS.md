@@ -16,7 +16,8 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - `app/posts/posts-list.tsx` is a client component for query-string tag filtering.
 - Shared UI lives in `components/`.
 - shadcn-style primitives live in `components/ui/`.
-- Site-wide config lives in `lib/site-config.ts`.
+- Site-wide config and `/write` publishing config live in `lib/site-config.ts`.
+- The repo-native static writer lives at `app/write/page.tsx` and is served at `/write`.
 - Repo-local Codex skills live in `.agents/skills/`.
 
 ## Local Skills
@@ -49,6 +50,8 @@ posts/<slug>/images/image.jpeg
 ```
 
 Reference them from MDX with relative paths.
+
+Non-technical authors can use `/write`. It generates frontmatter, writes posts to `posts/<slug>/page.mdx`, uploads media under each post's `images/` folder, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
 
 ## Commands
 
@@ -89,9 +92,12 @@ Do not introduce features that require a runtime Next server unless the deployme
 
 MDX images are rendered through `next/image` with `unoptimized`.
 
+The `/write` route is a client-only static tool. Do not add server-only publishing code unless the deployment model changes.
+
 ## Known Gotchas
 
 - The home page assumes at least one post exists.
 - `app/globals.css` appears to have a typo: `var(----font-noto-sans)` should likely be `var(--font-noto-sans)`.
 - `next lint` is deprecated.
 - `pnpm start` is not the right production path for static export; serve the generated `out/` directory instead.
+- `/write` authors need repository access and a fine-grained GitHub PAT with `Contents: write`. GitHub token URLs can prefill resource owner and permissions, but not the specific selected repository via documented query params; authors must select `cyberpunga.github.io` in GitHub's Repository access UI. Outside collaborators on organization repos may need different GitHub access setup if fine-grained PAT limitations apply.

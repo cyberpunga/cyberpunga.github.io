@@ -30,6 +30,25 @@ export const siteConfig = {
       { title: "IA", href: "/posts?tag=IA" },
     ],
   },
+  writer: {
+    repository: {
+      owner: "cyberpunga",
+      name: "cyberpunga.github.io",
+      branch: "main",
+    },
+    token: {
+      name: "cyberpunga writer",
+      description: "Create and edit posts for cyberpunga.github.io",
+      expiresInDays: 90,
+      requiredPermissions: {
+        contents: "write",
+      },
+    },
+    storage: {
+      tokenKey: "cyberpunga:github-token",
+      draftKey: "cyberpunga:writer-draft",
+    },
+  },
 };
 
 export type SiteConfig = typeof siteConfig;
