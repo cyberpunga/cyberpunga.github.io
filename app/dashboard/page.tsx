@@ -1,13 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { siteConfig } from "@/lib/site-config";
-import { ExternalLink, ImagePlus, KeyRound, Save, Send, Trash2 } from "lucide-react";
+import {
+  buildGitHubTokenUrl,
+  clearGitHubToken,
+  githubErrorMessage,
+  githubHeaders,
+  saveGitHubToken,
+  validateGitHubToken,
+  writerRepository,
+  writerRepositoryFullName,
+  writerStorage,
+} from "@/lib/github-auth";
+import type { GitHubAuthUser } from "@/lib/github-auth";
+import { ExternalLink, ImagePlus, KeyRound, LogOut, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-
-const { repository, storage, token: tokenConfig } = siteConfig.writer;
-const REPOSITORY_FULL_NAME = `${repository.owner}/${repository.name}`;
 
 type SelectedImage = {
   id: string;
@@ -30,6 +38,11 @@ type DraftState = {
   body: string;
 };
 
+type AuthState =
+  | { kind: "checking"; token: string }
+  | { kind: "signed-out"; token: string; message?: string }
+  | { kind: "signed-in"; token: string; user: GitHubAuthUser };
+
 const emptyDraft = (): DraftState => ({
   title: "",
   date: new Date().toISOString().slice(0, 10),
@@ -38,10 +51,10 @@ const emptyDraft = (): DraftState => ({
   body: "",
 });
 
-export default function WritePage() {
-  const [token, setToken] = useState("");
-  const [rememberToken, setRememberToken] = useState(true);
+export default function DashboardPage() {
+  const [auth, setAuth] = useState<AuthState>({ kind: "checking", token: "" });
   const [draft, setDraft] = useState<DraftState>(emptyDraft);
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [publishState, setPublishState] = useState<PublishState>({ kind: "idle", message: "" });
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -49,42 +62,74 @@ export default function WritePage() {
   const slug = useMemo(() => slugify(draft.title), [draft.title]);
   const tags = useMemo(() => parseTags(draft.tagsInput), [draft.tagsInput]);
   const mdx = useMemo(() => buildMdx(draft, tags), [draft, tags]);
-  const tokenUrl = useMemo(() => buildTokenUrl(), []);
+  const tokenUrl = useMemo(() => buildGitHubTokenUrl(), []);
 
   useEffect(() => {
-    const savedToken = window.localStorage.getItem(storage.tokenKey);
-    const savedDraft = window.localStorage.getItem(storage.draftKey);
+    const savedToken = window.localStorage.getItem(writerStorage.tokenKey) ?? "";
+    const savedDraft = window.localStorage.getItem(writerStorage.draftKey);
 
-    if (savedToken) {
-      setToken(savedToken);
+    if (!savedToken) {
+      setAuth({ kind: "signed-out", token: "" });
+    } else {
+      validateStoredToken(savedToken);
     }
 
     if (savedDraft) {
       try {
         setDraft({ ...emptyDraft(), ...JSON.parse(savedDraft) });
       } catch {
-        window.localStorage.removeItem(storage.draftKey);
+        window.localStorage.removeItem(writerStorage.draftKey);
       }
     }
+
+    setDraftLoaded(true);
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(storage.draftKey, JSON.stringify(draft));
-  }, [draft]);
+    if (!draftLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(writerStorage.draftKey, JSON.stringify(draft));
+  }, [draft, draftLoaded]);
 
   function updateDraft<Key extends keyof DraftState>(key: Key, value: DraftState[Key]) {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function handleTokenSave() {
-    if (rememberToken && token.trim()) {
-      window.localStorage.setItem(storage.tokenKey, token.trim());
-      setPublishState({ kind: "success", message: "Token saved in this browser." });
+  async function validateStoredToken(token: string) {
+    setAuth({ kind: "checking", token });
+
+    try {
+      const user = await validateGitHubToken(token);
+      saveGitHubToken(token.trim());
+      setAuth({ kind: "signed-in", token: token.trim(), user });
+    } catch (error) {
+      clearGitHubToken();
+      setAuth({
+        kind: "signed-out",
+        token,
+        message: error instanceof Error ? error.message : "GitHub sign in failed.",
+      });
+    }
+  }
+
+  function updateAuthToken(token: string) {
+    setAuth((current) => ({ ...current, token }));
+  }
+
+  function signOut() {
+    clearGitHubToken();
+    setAuth({ kind: "signed-out", token: "" });
+  }
+
+  async function signIn() {
+    if (!auth.token.trim()) {
+      setAuth({ kind: "signed-out", token: "", message: "Paste a GitHub token first." });
       return;
     }
 
-    window.localStorage.removeItem(storage.tokenKey);
-    setPublishState({ kind: "success", message: "Token storage cleared." });
+    await validateStoredToken(auth.token);
   }
 
   function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
@@ -143,10 +188,10 @@ export default function WritePage() {
     setPublishState({ kind: "working", message: "Preparing post..." });
 
     try {
-      validateDraft(draft, slug, tags, token);
+      validateDraft(draft, slug, tags, auth.token);
 
       const pagePath = `posts/${slug}/page.mdx`;
-      await ensurePathIsNew(pagePath, token.trim());
+      await ensurePathIsNew(pagePath, auth.token.trim());
 
       for (const image of images) {
         setPublishState({ kind: "working", message: `Uploading ${image.safeName}...` });
@@ -155,7 +200,7 @@ export default function WritePage() {
           path: `posts/${slug}/images/${image.safeName}`,
           content,
           message: `Add image for ${draft.title}`,
-          token: token.trim(),
+          token: auth.token.trim(),
         });
       }
 
@@ -164,10 +209,10 @@ export default function WritePage() {
         path: pagePath,
         content: textToBase64(mdx),
         message: `Add post: ${draft.title}`,
-        token: token.trim(),
+        token: auth.token.trim(),
       });
 
-      window.localStorage.removeItem(storage.draftKey);
+      window.localStorage.removeItem(writerStorage.draftKey);
       setPublishState({
         kind: "success",
         message: "Published to GitHub.",
@@ -181,14 +226,78 @@ export default function WritePage() {
     }
   }
 
+  const isSignedIn = auth.kind === "signed-in";
+
+  if (!isSignedIn) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
+        <header className="border-b border-zinc-200 pb-6 dark:border-zinc-800">
+          <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+            Dashboard
+          </p>
+          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">Sign in with GitHub</h1>
+        </header>
+
+        <section className="rounded-lg border border-zinc-200 bg-background p-5 dark:border-zinc-800">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Repository access</h2>
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{writerRepositoryFullName}</p>
+            </div>
+            <Button asChild variant="outline">
+              <a href={tokenUrl} target="_blank" rel="noreferrer">
+                <KeyRound />
+                Create token
+                <ExternalLink />
+              </a>
+            </Button>
+          </div>
+
+          <label className="mb-4 flex flex-col gap-2">
+            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">GitHub token</span>
+            <input
+              type="password"
+              value={auth.token}
+              onChange={(event) => updateAuthToken(event.target.value)}
+              className="h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
+              placeholder="github_pat_..."
+            />
+          </label>
+
+          <Button type="button" className="w-full sm:w-auto" onClick={signIn} disabled={auth.kind === "checking"}>
+            <KeyRound />
+            {auth.kind === "checking" ? "Checking..." : "Sign in"}
+          </Button>
+
+          <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            The token link pre-fills the owner and Contents permission. In GitHub, choose Only select repositories,
+            then select {writerRepository.name}. The token stays in this browser.
+          </p>
+
+          {auth.kind === "signed-out" && auth.message ? (
+            <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+              {auth.message}
+            </p>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
       <header className="flex flex-col gap-3 border-b border-zinc-200 pb-6 dark:border-zinc-800 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            GitHub writer
+            Dashboard
           </p>
           <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">New post</h1>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Signed in as{" "}
+            <Link href={auth.user.htmlUrl} target="_blank" className="underline">
+              @{auth.user.login}
+            </Link>
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
@@ -301,34 +410,21 @@ export default function WritePage() {
 
         <aside className="space-y-6">
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Access</h2>
-            <label className="mb-3 flex flex-col gap-2">
-              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">GitHub token</span>
-              <input
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                className="h-10 rounded-md border border-zinc-300 bg-background px-3 text-sm outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-                placeholder="github_pat_..."
-              />
-            </label>
-            <label className="mb-4 flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-              <input
-                type="checkbox"
-                checked={rememberToken}
-                onChange={(event) => setRememberToken(event.target.checked)}
-                className="size-4 rounded border-zinc-300"
-              />
-              Remember on this browser
-            </label>
-            <Button type="button" variant="outline" className="w-full" onClick={handleTokenSave}>
-              <Save />
-              Save access
+            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Session</h2>
+            <dl className="mb-4 space-y-3 text-sm">
+              <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">GitHub</dt>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">@{auth.user.login}</dd>
+              </div>
+              <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">Access</dt>
+                <dd className="text-zinc-900 dark:text-zinc-100">Write enabled</dd>
+              </div>
+            </dl>
+            <Button type="button" variant="outline" className="w-full" onClick={signOut}>
+              <LogOut />
+              Sign out
             </Button>
-            <p className="mt-4 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-              The token link pre-fills the owner and Contents permission. In GitHub, choose Only select repositories,
-              then select {repository.name}.
-            </p>
           </section>
 
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
@@ -336,11 +432,11 @@ export default function WritePage() {
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Repository</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{REPOSITORY_FULL_NAME}</dd>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepositoryFullName}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Branch</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{repository.branch}</dd>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepository.branch}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Slug</dt>
@@ -387,20 +483,6 @@ export default function WritePage() {
       </section>
     </main>
   );
-}
-
-function buildTokenUrl() {
-  const url = new URL("https://github.com/settings/personal-access-tokens/new");
-  url.searchParams.set("name", tokenConfig.name);
-  url.searchParams.set("description", tokenConfig.description);
-  url.searchParams.set("target_name", repository.owner);
-  url.searchParams.set("expires_in", String(tokenConfig.expiresInDays));
-
-  Object.entries(tokenConfig.requiredPermissions).forEach(([permission, level]) => {
-    url.searchParams.set(permission, level);
-  });
-
-  return url.toString();
 }
 
 function buildMdx(draft: DraftState, tags: string[]) {
@@ -481,7 +563,7 @@ function uniqueFileName(fileName: string, existingNames: Set<string>, index: num
 
 async function ensurePathIsNew(path: string, token: string) {
   const response = await fetch(
-    `https://api.github.com/repos/${REPOSITORY_FULL_NAME}/contents/${encodeGitHubPath(path)}?ref=${repository.branch}`,
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}?ref=${writerRepository.branch}`,
     {
       headers: githubHeaders(token),
     },
@@ -509,13 +591,13 @@ async function putFile({
   message: string;
   token: string;
 }) {
-  const response = await fetch(`https://api.github.com/repos/${REPOSITORY_FULL_NAME}/contents/${encodeGitHubPath(path)}`, {
+  const response = await fetch(`https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}`, {
     method: "PUT",
     headers: githubHeaders(token),
     body: JSON.stringify({
       message,
       content,
-      branch: repository.branch,
+      branch: writerRepository.branch,
     }),
   });
 
@@ -524,24 +606,6 @@ async function putFile({
   }
 
   return (await response.json()) as { commit: { html_url: string } };
-}
-
-function githubHeaders(token: string) {
-  return {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-}
-
-async function githubErrorMessage(response: Response) {
-  try {
-    const body = (await response.json()) as { message?: string };
-    return body.message ? `GitHub ${response.status}: ${body.message}` : `GitHub request failed: ${response.status}`;
-  } catch {
-    return `GitHub request failed: ${response.status}`;
-  }
 }
 
 function encodeGitHubPath(path: string) {

@@ -38,10 +38,10 @@ Abre:
 http://localhost:3000
 ```
 
-El publicador de artículos queda disponible en:
+El dashboard de publicación queda disponible en:
 
 ```text
-http://localhost:3000/write
+http://localhost:3000/dashboard
 ```
 
 ## Scripts
@@ -64,8 +64,8 @@ Notas:
 ```text
 app/
   page.tsx              Página principal
-  write/
-    page.tsx            Publicador estático que escribe posts vía GitHub API
+  dashboard/
+    page.tsx            Dashboard estático que publica posts vía GitHub API
   posts/
     page.tsx            Índice de artículos
     posts-list.tsx      Filtro cliente por tag
@@ -117,7 +117,7 @@ Y referenciarse desde MDX:
 ![Descripción de la imagen](./images/01.jpeg)
 ```
 
-También se pueden crear artículos desde `/write`. Es un publicador estático del propio sitio: genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`.
+También se pueden crear artículos desde `/dashboard`. Es un dashboard estático del propio sitio: valida un token de GitHub guardado en el navegador, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`.
 
 El publicador crea entradas con esta misma estructura:
 
@@ -126,7 +126,7 @@ posts/<slug>/page.mdx
 posts/<slug>/images/
 ```
 
-Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/write` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor si elige recordarlo.
+Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor.
 
 ## Tags
 
