@@ -151,6 +151,10 @@ export async function ensureGitHubUserContentEntry(token: string, user: GitHubAu
   }
 
   if (existingResponse.status !== 404) {
+    if (existingResponse.status === 403) {
+      throw new Error(await githubContentsWriteErrorMessage(existingResponse));
+    }
+
     throw new Error(await githubErrorMessage(existingResponse));
   }
 
@@ -173,6 +177,10 @@ export async function ensureGitHubUserContentEntry(token: string, user: GitHubAu
       if (raceResponse.ok) {
         return { kind: "exists" as const, path };
       }
+    }
+
+    if (createResponse.status === 403) {
+      throw new Error(await githubContentsWriteErrorMessage(createResponse));
     }
 
     throw new Error(await githubErrorMessage(createResponse));
@@ -198,6 +206,12 @@ export async function githubErrorMessage(response: Response) {
   } catch {
     return `GitHub request failed: ${response.status}`;
   }
+}
+
+async function githubContentsWriteErrorMessage(response: Response) {
+  const message = await githubErrorMessage(response);
+
+  return `${message}. Create a fine-grained GitHub token for ${writerRepositoryFullName} with Repository access set to ${writerRepository.name}, Repository permissions > Contents set to Read and write, and any required organization approval completed.`;
 }
 
 function buildGitHubUserMdx(user: GitHubAuthUser) {
