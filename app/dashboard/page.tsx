@@ -31,6 +31,7 @@ import {
   KeyRound,
   ListPlus,
   LogOut,
+  Pencil,
   Plus,
   RefreshCw,
   Send,
@@ -61,6 +62,22 @@ type EntryDraft = {
   body: string;
 };
 
+type EntrySummary = {
+  slug: string;
+  title: string;
+  description: string;
+  path: string;
+  sha: string;
+  sortValue?: unknown;
+};
+
+type EditingEntry = {
+  collectionId: string;
+  slug: string;
+  path: string;
+  sha: string;
+};
+
 type NewFieldDraft = {
   id: string;
   label: string;
@@ -80,6 +97,8 @@ type TypeDraft = {
 type GitHubContentItem = {
   type?: string;
   name?: string;
+  path?: string;
+  sha?: string;
   content?: string;
   encoding?: string;
 };
@@ -109,6 +128,11 @@ export default function DashboardPage() {
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [typeDraft, setTypeDraft] = useState<TypeDraft>(emptyTypeDraft);
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [existingImageNames, setExistingImageNames] = useState<Set<string>>(() => new Set());
+  const [entries, setEntries] = useState<EntrySummary[]>([]);
+  const [entriesState, setEntriesState] = useState<ActionState>({ kind: "idle", message: "" });
+  const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  const [routeState, setRouteState] = useState({ collectionId: "", entrySlug: "" });
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
   const [tokenInput, setTokenInput] = useState("");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -116,9 +140,14 @@ export default function DashboardPage() {
 
   const authToken = auth.kind === "signed-in" ? auth.token : "";
   const slug = useMemo(() => normalizeContentSegment(draft.title), [draft.title]);
+  const activeEditingEntry = editingEntry?.collectionId === selectedCollection.id ? editingEntry : null;
+  const isEditing = Boolean(activeEditingEntry);
+  const outputSlug = activeEditingEntry ? activeEditingEntry.slug : slug || "entry-title";
   const mdx = useMemo(() => buildMdx(selectedCollection, draft), [selectedCollection, draft]);
   const tokenUrl = useMemo(() => buildGitHubTokenUrl(), []);
-  const entryPath = `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
+  const entryPath = activeEditingEntry
+    ? activeEditingEntry.path
+    : `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
   const selectedTags = getTagsForCollection(selectedCollection, draft);
 
   useEffect(() => {
@@ -130,9 +159,29 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    function readRouteState() {
+      const params = new URLSearchParams(window.location.search);
+      setRouteState({
+        collectionId: normalizeContentSegment(params.get("type") ?? ""),
+        entrySlug: normalizeContentSegment(params.get("entry") ?? ""),
+      });
+    }
+
+    readRouteState();
+    window.addEventListener("popstate", readRouteState);
+
+    return () => {
+      window.removeEventListener("popstate", readRouteState);
+    };
+  }, []);
+
+  useEffect(() => {
     if (auth.kind !== "signed-in" || !authToken) {
       setCollections([postCollectionDefinition]);
       setCollectionsState({ kind: "idle", message: "" });
+      setEntries([]);
+      setEntriesState({ kind: "idle", message: "" });
+      setEditingEntry(null);
       return;
     }
 
@@ -166,6 +215,12 @@ export default function DashboardPage() {
   }, [auth.kind, authToken]);
 
   useEffect(() => {
+    if (routeState.collectionId && collections.some((collection) => collection.id === routeState.collectionId)) {
+      setSelectedCollectionId(routeState.collectionId);
+    }
+  }, [collections, routeState.collectionId]);
+
+  useEffect(() => {
     if (!collections.some((collection) => collection.id === selectedCollectionId)) {
       setSelectedCollectionId(collections[0]?.id ?? postCollectionDefinition.id);
     }
@@ -178,18 +233,108 @@ export default function DashboardPage() {
     const nextDraft = savedDraft ? parseStoredDraft(savedDraft, selectedCollection) : emptyEntryDraft(selectedCollection);
 
     setDraft(nextDraft);
+    setEditingEntry((current) => (current?.collectionId === selectedCollection.id ? current : null));
+    setExistingImageNames(new Set());
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
     setDraftLoaded(true);
   }, [selectedCollection]);
 
   useEffect(() => {
-    if (!draftLoaded) {
+    if (!draftLoaded || isEditing) {
       return;
     }
 
     window.localStorage.setItem(draftStorageKey(selectedCollection.id), JSON.stringify(draft));
-  }, [draft, draftLoaded, selectedCollection.id]);
+  }, [draft, draftLoaded, isEditing, selectedCollection.id]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    let ignore = false;
+    setEntriesState({ kind: "working", message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...` });
+
+    loadEntriesFromGitHub(selectedCollection, auth.token)
+      .then((nextEntries) => {
+        if (ignore) {
+          return;
+        }
+
+        setEntries(nextEntries);
+        setEntriesState({
+          kind: "success",
+          message: nextEntries.length
+            ? `${nextEntries.length} ${nextEntries.length === 1 ? selectedCollection.label.toLowerCase() : selectedCollection.pluralLabel.toLowerCase()} loaded.`
+            : `No ${selectedCollection.pluralLabel.toLowerCase()} yet.`,
+        });
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setEntries([]);
+        setEntriesState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not load entries.",
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth, selectedCollection]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in" || !routeState.entrySlug || selectedCollection.id !== routeState.collectionId) {
+      return;
+    }
+
+    if (editingEntry?.collectionId === selectedCollection.id && editingEntry.slug === routeState.entrySlug) {
+      return;
+    }
+
+    let ignore = false;
+    setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
+
+    Promise.all([
+      loadEntryFromGitHub(selectedCollection, routeState.entrySlug, auth.token),
+      loadEntryImageNamesFromGitHub(selectedCollection.id, routeState.entrySlug, auth.token),
+    ])
+      .then(([entry, remoteImageNames]) => {
+        if (ignore) {
+          return;
+        }
+
+        setDraft(entry.draft);
+        setDraftLoaded(true);
+        setEditingEntry({
+          collectionId: selectedCollection.id,
+          slug: entry.slug,
+          path: entry.path,
+          sha: entry.sha,
+        });
+        setExistingImageNames(remoteImageNames);
+        clearSelectedImages();
+        setActionState({ kind: "idle", message: "" });
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setActionState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not load entry.",
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth, routeState.entrySlug, routeState.collectionId, selectedCollection, editingEntry]);
 
   useEffect(() => {
     imagesRef.current = images;
@@ -229,7 +374,7 @@ export default function DashboardPage() {
 
   function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
-    const existingNames = new Set(images.map((image) => image.safeName));
+    const existingNames = new Set([...existingImageNames, ...images.map((image) => image.safeName)]);
     const nextImages = files.map((file, index) => {
       const safeName = uniqueFileName(sanitizeFileName(file.name), existingNames, images.length + index + 1);
       existingNames.add(safeName);
@@ -286,6 +431,36 @@ export default function DashboardPage() {
     });
   }
 
+  function selectCollection(collectionId: string) {
+    setSelectedCollectionId(collectionId);
+    setEditingEntry(null);
+    setExistingImageNames(new Set());
+    updateDashboardUrl(collectionId);
+  }
+
+  function updateDashboardUrl(collectionId: string, entrySlug?: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("type", collectionId);
+
+    if (entrySlug) {
+      url.searchParams.set("entry", entrySlug);
+    } else {
+      url.searchParams.delete("entry");
+    }
+
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    setRouteState({ collectionId, entrySlug: entrySlug ?? "" });
+  }
+
+  function startNewEntry() {
+    setEditingEntry(null);
+    setExistingImageNames(new Set());
+    setDraft(emptyEntryDraft(selectedCollection));
+    clearSelectedImages();
+    setActionState({ kind: "idle", message: "" });
+    updateDashboardUrl(selectedCollection.id);
+  }
+
   async function refreshCollections() {
     if (auth.kind !== "signed-in") {
       return;
@@ -305,44 +480,136 @@ export default function DashboardPage() {
     }
   }
 
+  async function refreshEntries() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setEntriesState({ kind: "working", message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...` });
+
+    try {
+      const nextEntries = await loadEntriesFromGitHub(selectedCollection, auth.token);
+      setEntries(nextEntries);
+      setEntriesState({
+        kind: "success",
+        message: nextEntries.length
+          ? `${nextEntries.length} ${nextEntries.length === 1 ? selectedCollection.label.toLowerCase() : selectedCollection.pluralLabel.toLowerCase()} loaded.`
+          : `No ${selectedCollection.pluralLabel.toLowerCase()} yet.`,
+      });
+    } catch (error) {
+      setEntriesState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not load entries.",
+      });
+    }
+  }
+
+  async function loadEntryForEdit(entrySlug: string) {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
+
+    try {
+      const entry = await loadEntryFromGitHub(selectedCollection, entrySlug, auth.token);
+      const remoteImageNames = await loadEntryImageNamesFromGitHub(selectedCollection.id, entry.slug, auth.token);
+
+      setDraft(entry.draft);
+      setDraftLoaded(true);
+      setEditingEntry({
+        collectionId: selectedCollection.id,
+        slug: entry.slug,
+        path: entry.path,
+        sha: entry.sha,
+      });
+      setExistingImageNames(remoteImageNames);
+      clearSelectedImages();
+      setActionState({ kind: "idle", message: "" });
+      updateDashboardUrl(selectedCollection.id, entry.slug);
+    } catch (error) {
+      setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not load entry.",
+      });
+    }
+  }
+
   async function publishEntry() {
     if (auth.kind !== "signed-in") {
       return;
     }
 
-    setActionState({ kind: "working", message: `Preparing ${selectedCollection.label.toLowerCase()}...` });
+    setActionState({
+      kind: "working",
+      message: `${isEditing ? "Preparing update for" : "Preparing"} ${selectedCollection.label.toLowerCase()}...`,
+    });
 
     try {
-      validateEntryDraft(selectedCollection, draft, slug, auth.token);
+      const targetSlug = activeEditingEntry ? activeEditingEntry.slug : slug;
+      const pagePath = activeEditingEntry
+        ? activeEditingEntry.path
+        : `content/${selectedCollection.id}/${targetSlug}/page.mdx`;
 
-      const pagePath = `content/${selectedCollection.id}/${slug}/page.mdx`;
-      await ensurePathIsNew(pagePath, auth.token.trim());
+      validateEntryDraft(selectedCollection, draft, targetSlug, auth.token);
+
+      if (!activeEditingEntry) {
+        await ensurePathIsNew(pagePath, auth.token.trim());
+      }
 
       for (const image of images) {
         setActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
         const content = await fileToBase64(image.file);
         await putFile({
-          path: `content/${selectedCollection.id}/${slug}/images/${image.safeName}`,
+          path: `content/${selectedCollection.id}/${targetSlug}/images/${image.safeName}`,
           content,
           message: `Add image for ${draft.title}`,
           token: auth.token.trim(),
         });
       }
 
-      setActionState({ kind: "working", message: `Publishing ${selectedCollection.label.toLowerCase()}...` });
+      setActionState({
+        kind: "working",
+        message: `${isEditing ? "Updating" : "Publishing"} ${selectedCollection.label.toLowerCase()}...`,
+      });
       const result = await putFile({
         path: pagePath,
         content: textToBase64(mdx),
-        message: `Add ${selectedCollection.label.toLowerCase()}: ${draft.title}`,
+        message: `${isEditing ? "Update" : "Add"} ${selectedCollection.label.toLowerCase()}: ${draft.title}`,
         token: auth.token.trim(),
+        sha: activeEditingEntry ? activeEditingEntry.sha : undefined,
       });
 
       window.localStorage.removeItem(draftStorageKey(selectedCollection.id));
-      setDraft(emptyEntryDraft(selectedCollection));
+      const nextEntry = {
+        slug: targetSlug,
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        path: pagePath,
+        sha: result.content?.sha ?? (activeEditingEntry ? activeEditingEntry.sha : ""),
+        sortValue: getDraftSortValue(selectedCollection, draft),
+      };
+
+      setEntries((current) => sortEntrySummaries([...current.filter((entry) => entry.slug !== targetSlug), nextEntry], selectedCollection));
+      setEditingEntry(
+        activeEditingEntry
+          ? {
+              collectionId: selectedCollection.id,
+              slug: targetSlug,
+              path: pagePath,
+              sha: nextEntry.sha || activeEditingEntry.sha,
+            }
+          : null,
+      );
+      setExistingImageNames((current) => new Set([...current, ...images.map((image) => image.safeName)]));
+      if (!isEditing) {
+        setDraft(emptyEntryDraft(selectedCollection));
+        updateDashboardUrl(selectedCollection.id);
+      }
       clearSelectedImages();
       setActionState({
         kind: "success",
-        message: "Published to GitHub.",
+        message: isEditing ? "Updated on GitHub." : "Published to GitHub.",
         href: result.commit.html_url,
       });
     } catch (error) {
@@ -462,7 +729,7 @@ export default function DashboardPage() {
             Dashboard
           </p>
           <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">
-            New {selectedCollection.label.toLowerCase()}
+            {isEditing ? "Edit" : "New"} {selectedCollection.label.toLowerCase()}
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Signed in as{" "}
@@ -476,7 +743,7 @@ export default function DashboardPage() {
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">Type</span>
             <select
               value={selectedCollection.id}
-              onChange={(event) => setSelectedCollectionId(event.target.value)}
+              onChange={(event) => selectCollection(event.target.value)}
               className={baseInputClass}
             >
               {collections.map((collection) => (
@@ -493,9 +760,13 @@ export default function DashboardPage() {
               <ExternalLink />
             </a>
           </Button>
+          <Button type="button" variant="outline" onClick={startNewEntry}>
+            <Plus />
+            New entry
+          </Button>
           <Button onClick={publishEntry} disabled={actionState.kind === "working"}>
             <Send />
-            Publish
+            {isEditing ? "Save" : "Publish"}
           </Button>
         </div>
       </header>
@@ -653,6 +924,57 @@ export default function DashboardPage() {
 
         <aside className="space-y-6">
           <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Entries</h2>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{entriesState.message || "Ready"}</p>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={refreshEntries}>
+                <RefreshCw />
+                <span className="sr-only">Refresh entries</span>
+              </Button>
+            </div>
+            <div className="grid gap-2">
+              <Button type="button" variant={isEditing ? "outline" : "secondary"} className="justify-start" onClick={startNewEntry}>
+                <Plus />
+                New {selectedCollection.label.toLowerCase()}
+              </Button>
+              {entries.length > 0 ? (
+                <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
+                  {entries.map((entry) => (
+                    <button
+                      key={entry.slug}
+                      type="button"
+                      onClick={() => loadEntryForEdit(entry.slug)}
+                      className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                        activeEditingEntry?.slug === entry.slug
+                          ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-900"
+                          : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                      }`}
+                    >
+                      <span className="flex items-start gap-2">
+                        <Pencil className="mt-0.5 size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                            {entry.title}
+                          </span>
+                          <span className="mt-1 block truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                            {entry.slug}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                  No entries found.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
             <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Session</h2>
             <dl className="mb-4 space-y-3 text-sm">
               <div>
@@ -696,12 +1018,18 @@ export default function DashboardPage() {
                 <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{selectedCollection.id}</dd>
               </div>
               <div>
+                <dt className="text-zinc-500 dark:text-zinc-400">Mode</dt>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">
+                  {isEditing ? "edit" : "new"}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Route</dt>
                 <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">/{selectedCollection.route}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Slug</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{slug || "entry-title"}</dd>
+                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{outputSlug}</dd>
               </div>
               <div>
                 <dt className="text-zinc-500 dark:text-zinc-400">Path</dt>
@@ -969,6 +1297,96 @@ function parseStoredDraft(rawDraft: string, collection: CollectionDefinition) {
   }
 }
 
+function parseMdxDraft(collection: CollectionDefinition, mdx: string): EntryDraft {
+  const fallback = emptyEntryDraft(collection);
+  const match = mdx.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+
+  if (!match) {
+    return {
+      ...fallback,
+      body: mdx.trim(),
+    };
+  }
+
+  const frontmatter = parseFrontmatter(match[1]);
+  const body = match[2].trim();
+
+  return {
+    title: typeof frontmatter.title === "string" ? frontmatter.title : fallback.title,
+    description: typeof frontmatter.description === "string" ? frontmatter.description : fallback.description,
+    fieldValues: Object.fromEntries(
+      collection.fields.map((field) => [
+        field.name,
+        frontmatterValueToDraftValue(field, frontmatter[field.name], fallback.fieldValues[field.name]),
+      ]),
+    ),
+    body,
+  };
+}
+
+function parseFrontmatter(frontmatter: string) {
+  const entries: Record<string, unknown> = {};
+
+  frontmatter.split(/\r?\n/).forEach((line) => {
+    const separatorIndex = line.indexOf(":");
+
+    if (separatorIndex === -1) {
+      return;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    const rawValue = line.slice(separatorIndex + 1).trim();
+
+    if (!key) {
+      return;
+    }
+
+    entries[key] = parseFrontmatterLiteral(rawValue);
+  });
+
+  return entries;
+}
+
+function parseFrontmatterLiteral(value: string): unknown {
+  if (!value) {
+    return "";
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  if (value.startsWith("[") || value.startsWith("{") || value.startsWith("\"")) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return value.replace(/^['"]|['"]$/g, "");
+}
+
+function frontmatterValueToDraftValue(field: ContentFieldDefinition, value: unknown, fallback: FieldDraftValue) {
+  if (field.type === "boolean") {
+    return typeof value === "boolean" ? value : Boolean(fallback);
+  }
+
+  if (field.type === "list" || field.type === "tags") {
+    if (Array.isArray(value)) {
+      return value.map(String).join(", ");
+    }
+
+    return typeof value === "string" ? value : String(fallback ?? "");
+  }
+
+  return typeof value === "string" ? value : String(value ?? fallback ?? "");
+}
+
 function draftStorageKey(collectionId: string) {
   return `${writerStorage.draftKey}:${collectionId}`;
 }
@@ -1138,6 +1556,49 @@ function parseListInput(value: string) {
     .filter(Boolean);
 }
 
+function getDraftSortValue(collection: CollectionDefinition, draft: EntryDraft) {
+  const sortField = collection.sort?.field;
+
+  if (!sortField) {
+    return draft.title.trim();
+  }
+
+  if (sortField === "title") {
+    return draft.title.trim();
+  }
+
+  if (sortField === "description") {
+    return draft.description.trim();
+  }
+
+  return draft.fieldValues[sortField];
+}
+
+function sortEntrySummaries(entries: EntrySummary[], collection: CollectionDefinition) {
+  const direction = collection.sort ? (collection.sort.direction === "asc" ? 1 : -1) : 1;
+
+  return [...entries].sort((a, b) => {
+    const valueDifference = compareSortValues(a.sortValue ?? a.title, b.sortValue ?? b.title);
+
+    if (valueDifference !== 0) {
+      return valueDifference * direction;
+    }
+
+    return a.title.localeCompare(b.title, "es");
+  });
+}
+
+function compareSortValues(a: unknown, b: unknown) {
+  const aDate = typeof a === "string" ? new Date(a).getTime() : Number.NaN;
+  const bDate = typeof b === "string" ? new Date(b).getTime() : Number.NaN;
+
+  if (!Number.isNaN(aDate) && !Number.isNaN(bDate)) {
+    return aDate - bDate;
+  }
+
+  return String(a ?? "").localeCompare(String(b ?? ""), "es");
+}
+
 async function loadCollectionsFromGitHub(token: string) {
   const response = await fetch(
     `https://api.github.com/repos/${writerRepositoryFullName}/contents/content?ref=${writerRepository.branch}`,
@@ -1199,6 +1660,116 @@ async function loadCollectionDefinitionFromGitHub(id: string, token: string) {
   return normalizeCollectionDefinition(JSON.parse(base64ToText(file.content)));
 }
 
+async function loadEntriesFromGitHub(collection: CollectionDefinition, token: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content/${encodeGitHubPath(collection.id)}?ref=${
+      writerRepository.branch
+    }`,
+    {
+      headers: githubHeaders(token),
+    },
+  );
+
+  if (response.status === 404) {
+    return [];
+  }
+
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const items = (await response.json()) as GitHubContentItem[] | GitHubContentItem;
+
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const summaries = (
+    await Promise.all(
+      items
+        .filter((item) => item.type === "dir" && item.name)
+        .map((item) => loadEntrySummaryFromGitHub(collection, item.name as string, token)),
+    )
+  ).filter((entry): entry is EntrySummary => Boolean(entry));
+
+  return sortEntrySummaries(summaries, collection);
+}
+
+async function loadEntrySummaryFromGitHub(
+  collection: CollectionDefinition,
+  slug: string,
+  token: string,
+): Promise<EntrySummary | undefined> {
+  try {
+    const entry = await loadEntryFromGitHub(collection, slug, token);
+
+    return {
+      slug: entry.slug,
+      title: entry.draft.title,
+      description: entry.draft.description,
+      path: entry.path,
+      sha: entry.sha,
+      sortValue: getDraftSortValue(collection, entry.draft),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function loadEntryFromGitHub(collection: CollectionDefinition, slug: string, token: string) {
+  const path = `content/${collection.id}/${slug}/page.mdx`;
+  const response = await fetch(
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}?ref=${writerRepository.branch}`,
+    {
+      headers: githubHeaders(token),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const file = (await response.json()) as GitHubContentItem;
+
+  if (file.encoding !== "base64" || !file.content || !file.sha) {
+    throw new Error(`Could not read ${path}.`);
+  }
+
+  return {
+    slug,
+    path,
+    sha: file.sha,
+    draft: parseMdxDraft(collection, base64ToText(file.content)),
+  };
+}
+
+async function loadEntryImageNamesFromGitHub(collectionId: string, slug: string, token: string) {
+  const response = await fetch(
+    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content/${encodeGitHubPath(
+      collectionId,
+    )}/${encodeGitHubPath(slug)}/images?ref=${writerRepository.branch}`,
+    {
+      headers: githubHeaders(token),
+    },
+  );
+
+  if (response.status === 404) {
+    return new Set<string>();
+  }
+
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const items = (await response.json()) as GitHubContentItem[] | GitHubContentItem;
+
+  if (!Array.isArray(items)) {
+    return new Set<string>();
+  }
+
+  return new Set(items.filter((item) => item.type === "file" && item.name).map((item) => item.name as string));
+}
+
 async function ensurePathIsNew(path: string, token: string) {
   const response = await fetch(
     `https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}?ref=${writerRepository.branch}`,
@@ -1223,11 +1794,13 @@ async function putFile({
   content,
   message,
   token,
+  sha,
 }: {
   path: string;
   content: string;
   message: string;
   token: string;
+  sha?: string;
 }) {
   const response = await fetch(`https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}`, {
     method: "PUT",
@@ -1236,6 +1809,7 @@ async function putFile({
       message,
       content,
       branch: writerRepository.branch,
+      sha,
     }),
   });
 
@@ -1243,7 +1817,7 @@ async function putFile({
     throw new Error(await githubErrorMessage(response));
   }
 
-  return (await response.json()) as { commit: { html_url: string } };
+  return (await response.json()) as { content?: { sha?: string }; commit: { html_url: string } };
 }
 
 function encodeGitHubPath(path: string) {
