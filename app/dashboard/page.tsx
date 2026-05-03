@@ -28,11 +28,9 @@ import {
   writerStorage,
 } from "@/lib/github-auth";
 import { useAuth } from "@/lib/github-auth-context";
+import { usePublishingStatus } from "@/lib/publishing-status-context";
 import { siteConfig } from "@/lib/site-config";
 import {
-  CheckCircle2,
-  CircleAlert,
-  Clock3,
   ExternalLink,
   FileText,
   ImagePlus,
@@ -59,22 +57,6 @@ type ActionState = {
   kind: "idle" | "working" | "success" | "error";
   message: string;
   href?: string;
-};
-
-type DeploymentState = {
-  kind: "idle" | "waiting" | "running" | "success" | "error" | "unknown";
-  message: string;
-  commitUrl?: string;
-  actionsUrl?: string;
-  siteUrl?: string;
-};
-
-type DeploymentTarget = {
-  sha: string;
-  label: string;
-  commitUrl: string;
-  siteUrl?: string;
-  startedAt: number;
 };
 
 type FieldDraftValue = string | boolean;
@@ -127,16 +109,6 @@ type GitHubContentItem = {
   encoding?: string;
 };
 
-type GitHubWorkflowRun = {
-  id: number;
-  name?: string;
-  html_url?: string;
-  status: string;
-  conclusion: string | null;
-  head_sha?: string;
-  event?: string;
-};
-
 const emptyTypeDraft = (): TypeDraft => ({
   label: "",
   pluralLabel: "",
@@ -148,12 +120,15 @@ const baseInputClass =
   "h-11 border border-zinc-800 bg-black px-3 text-base text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]";
 const textareaClass =
   "resize-y border border-zinc-800 bg-black px-3 py-2 text-base text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]";
-const deployPollIntervalMs = 6000;
-const deployRunStartTimeoutMs = 120000;
-const emptyDeploymentState = (): DeploymentState => ({ kind: "idle", message: "" });
-
 export default function DashboardPage() {
   const { auth, signIn, signOut } = useAuth();
+  const {
+    actionState: publishingActionState,
+    deploymentState,
+    clearPublishingStatus,
+    setPublishingActionState,
+    startDeploymentWatch,
+  } = usePublishingStatus();
   const [collections, setCollections] = useState<CollectionDefinition[]>(defaultCollectionDefinitions);
   const [collectionsState, setCollectionsState] = useState<ActionState>({ kind: "idle", message: "" });
   const [selectedCollectionId, setSelectedCollectionId] = useState(defaultPostCollectionDefinition.id);
@@ -171,8 +146,6 @@ export default function DashboardPage() {
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
   const [routeState, setRouteState] = useState({ collectionId: "", entrySlug: "" });
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
-  const [deploymentTarget, setDeploymentTarget] = useState<DeploymentTarget | null>(null);
-  const [deploymentState, setDeploymentState] = useState<DeploymentState>(emptyDeploymentState);
   const [tokenInput, setTokenInput] = useState("");
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const imagesRef = useRef<SelectedImage[]>([]);
@@ -274,8 +247,6 @@ export default function DashboardPage() {
     setExistingImageNames(new Set());
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
     setDraftLoaded(true);
   }, [selectedCollection]);
 
@@ -337,8 +308,6 @@ export default function DashboardPage() {
 
     let ignore = false;
     setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
 
     Promise.all([
       loadEntryFromGitHub(selectedCollection, routeState.entrySlug, auth.token),
@@ -380,78 +349,6 @@ export default function DashboardPage() {
   useEffect(() => {
     imagesRef.current = images;
   }, [images]);
-
-  useEffect(() => {
-    if (auth.kind !== "signed-in" || !authToken || !deploymentTarget) {
-      return;
-    }
-
-    const target = deploymentTarget;
-    let ignore = false;
-    let timeoutId: number | undefined;
-
-    async function pollDeployment() {
-      try {
-        const run = await loadWorkflowRunForCommit(target.sha, authToken);
-
-        if (ignore) {
-          return;
-        }
-
-        if (!run) {
-          const waitedMs = Date.now() - target.startedAt;
-          const nextState = waitingForDeploymentRunState(target);
-          setDeploymentState(
-            waitedMs > deployRunStartTimeoutMs
-              ? {
-                  ...nextState,
-                  kind: "unknown",
-                  message:
-                    "Saved on GitHub, but the deploy run has not appeared yet. Check GitHub Actions if the public site does not update soon.",
-                  actionsUrl: githubActionsUrl(),
-                }
-              : nextState,
-          );
-
-          if (waitedMs <= deployRunStartTimeoutMs) {
-            timeoutId = window.setTimeout(pollDeployment, deployPollIntervalMs);
-          }
-          return;
-        }
-
-        const nextState = deploymentStateFromRun(run, target);
-        setDeploymentState(nextState);
-
-        if (run.status !== "completed") {
-          timeoutId = window.setTimeout(pollDeployment, deployPollIntervalMs);
-        }
-      } catch (error) {
-        if (ignore) {
-          return;
-        }
-
-        setDeploymentState({
-          kind: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Saved on GitHub, but the deploy status could not be loaded.",
-          commitUrl: target.commitUrl,
-          siteUrl: target.siteUrl,
-          actionsUrl: githubActionsUrl(),
-        });
-      }
-    }
-
-    pollDeployment();
-
-    return () => {
-      ignore = true;
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [auth.kind, authToken, deploymentTarget]);
 
   useEffect(() => {
     return () => {
@@ -572,8 +469,6 @@ export default function DashboardPage() {
     setDraft(emptyEntryDraft(selectedCollection));
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
     updateDashboardUrl(selectedCollection.id);
   }
 
@@ -626,8 +521,6 @@ export default function DashboardPage() {
     }
 
     setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
 
     try {
       const entry = await loadEntryFromGitHub(selectedCollection, entrySlug, auth.token);
@@ -662,8 +555,11 @@ export default function DashboardPage() {
       kind: "working",
       message: `${isEditing ? "Preparing update for" : "Preparing"} ${selectedCollection.label.toLowerCase()}...`,
     });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
+    clearPublishingStatus();
+    setPublishingActionState({
+      kind: "working",
+      message: `${isEditing ? "Preparing update for" : "Preparing"} ${selectedCollection.label.toLowerCase()}...`,
+    });
 
     try {
       const targetSlug = activeEditingEntry ? activeEditingEntry.slug : slug;
@@ -679,6 +575,7 @@ export default function DashboardPage() {
 
       for (const image of images) {
         setActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
+        setPublishingActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
         const content = await fileToBase64(image.file);
         await putFile({
           path: `content/${selectedCollection.id}/${targetSlug}/images/${image.safeName}`,
@@ -689,6 +586,10 @@ export default function DashboardPage() {
       }
 
       setActionState({
+        kind: "working",
+        message: `${isEditing ? "Updating" : "Publishing"} ${selectedCollection.label.toLowerCase()}...`,
+      });
+      setPublishingActionState({
         kind: "working",
         message: `${isEditing ? "Updating" : "Publishing"} ${selectedCollection.label.toLowerCase()}...`,
       });
@@ -732,6 +633,11 @@ export default function DashboardPage() {
         message: `${isEditing ? "Updated" : "Published"} on GitHub. Waiting for the site deploy now.`,
         href: result.commit.html_url,
       });
+      setPublishingActionState({
+        kind: "success",
+        message: `${isEditing ? "Updated" : "Published"} on GitHub. Waiting for the site deploy now.`,
+        href: result.commit.html_url,
+      });
       startDeploymentWatch({
         sha: result.commit.sha,
         label: `${selectedCollection.label} "${nextEntry.title}"`,
@@ -740,6 +646,10 @@ export default function DashboardPage() {
       });
     } catch (error) {
       setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Publishing failed.",
+      });
+      setPublishingActionState({
         kind: "error",
         message: error instanceof Error ? error.message : "Publishing failed.",
       });
@@ -752,8 +662,8 @@ export default function DashboardPage() {
     }
 
     setActionState({ kind: "working", message: "Preparing content type..." });
-    setDeploymentTarget(null);
-    setDeploymentState(emptyDeploymentState());
+    clearPublishingStatus();
+    setPublishingActionState({ kind: "working", message: "Preparing content type..." });
 
     try {
       const definition = buildCollectionDefinition(typeDraft, collections);
@@ -775,6 +685,11 @@ export default function DashboardPage() {
         message: "Content type added to GitHub. Waiting for the site deploy now.",
         href: result.commit.html_url,
       });
+      setPublishingActionState({
+        kind: "success",
+        message: "Content type added to GitHub. Waiting for the site deploy now.",
+        href: result.commit.html_url,
+      });
       startDeploymentWatch({
         sha: result.commit.sha,
         label: `Content type "${definition.pluralLabel}"`,
@@ -783,6 +698,10 @@ export default function DashboardPage() {
       });
     } catch (error) {
       setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not create content type.",
+      });
+      setPublishingActionState({
         kind: "error",
         message: error instanceof Error ? error.message : "Could not create content type.",
       });
@@ -1212,17 +1131,13 @@ export default function DashboardPage() {
             </pre>
           </section>
 
-          <PublishingStatusPanel actionState={actionState} deploymentState={deploymentState} />
+          {publishingActionState.message || deploymentState.message ? null : (
+            <DashboardActionStatusPanel actionState={actionState} />
+          )}
         </aside>
       </section>
     </main>
   );
-
-  function startDeploymentWatch(target: Omit<DeploymentTarget, "startedAt">) {
-    const nextTarget = { ...target, startedAt: Date.now() };
-    setDeploymentTarget(nextTarget);
-    setDeploymentState(waitingForDeploymentRunState(nextTarget));
-  }
 
   function addTypeField() {
     setTypeDraft((current) => ({
@@ -1333,19 +1248,13 @@ function FieldLabel({ field }: { field: ContentFieldDefinition }) {
   );
 }
 
-function PublishingStatusPanel({
-  actionState,
-  deploymentState,
-}: {
-  actionState: ActionState;
-  deploymentState: DeploymentState;
-}) {
-  if (!actionState.message && !deploymentState.message) {
+function DashboardActionStatusPanel({ actionState }: { actionState: ActionState }) {
+  if (!actionState.message) {
     return null;
   }
 
-  const isError = actionState.kind === "error" || deploymentState.kind === "error";
-  const isSuccess = actionState.kind === "success" && deploymentState.kind === "success";
+  const isError = actionState.kind === "error";
+  const isSuccess = actionState.kind === "success";
 
   return (
     <section
@@ -1358,50 +1267,16 @@ function PublishingStatusPanel({
       }`}
     >
       {actionState.message ? <p>{actionState.message}</p> : null}
-      {deploymentState.message ? (
-        <div className="mt-3 flex items-start gap-2">
-          <DeploymentStatusIcon kind={deploymentState.kind} />
-          <p>{deploymentState.message}</p>
-        </div>
-      ) : null}
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-        {actionState.href ? (
+      {actionState.href ? (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
           <Link href={actionState.href} target="_blank" className="inline-flex items-center gap-1 underline">
             View commit
             <ExternalLink className="size-3" />
           </Link>
-        ) : null}
-        {deploymentState.actionsUrl ? (
-          <Link href={deploymentState.actionsUrl} target="_blank" className="inline-flex items-center gap-1 underline">
-            View deploy
-            <ExternalLink className="size-3" />
-          </Link>
-        ) : null}
-        {deploymentState.siteUrl && deploymentState.kind === "success" ? (
-          <Link href={deploymentState.siteUrl} target="_blank" className="inline-flex items-center gap-1 underline">
-            View live page
-            <ExternalLink className="size-3" />
-          </Link>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
-}
-
-function DeploymentStatusIcon({ kind }: { kind: DeploymentState["kind"] }) {
-  if (kind === "success") {
-    return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" />;
-  }
-
-  if (kind === "error") {
-    return <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-300" />;
-  }
-
-  if (kind === "running") {
-    return <RefreshCw className="mt-0.5 size-4 shrink-0 animate-spin" />;
-  }
-
-  return <Clock3 className="mt-0.5 size-4 shrink-0 text-zinc-500" />;
 }
 
 function NewFieldEditor({
@@ -2060,157 +1935,6 @@ async function putFile({
   }
 
   return (await response.json()) as { content?: { sha?: string }; commit: { html_url: string; sha: string } };
-}
-
-async function loadWorkflowRunForCommit(sha: string, token: string) {
-  const url = new URL(`https://api.github.com/repos/${writerRepositoryFullName}/actions/runs`);
-  url.searchParams.set("branch", writerRepository.branch);
-  url.searchParams.set("event", "push");
-  url.searchParams.set("head_sha", sha);
-  url.searchParams.set("exclude_pull_requests", "true");
-  url.searchParams.set("per_page", "10");
-
-  const data = await fetchWorkflowRuns(url.toString(), token);
-  const runs = data.workflow_runs.filter((run) => run.head_sha === sha && run.event === "push");
-
-  return (
-    runs.find((run) => run.name === siteConfig.writer.deployment.workflowName) ??
-    runs.find((run) => run.name?.toLowerCase().includes("pages")) ??
-    runs[0] ??
-    null
-  );
-}
-
-async function fetchWorkflowRuns(url: string, token: string): Promise<{ workflow_runs: GitHubWorkflowRun[] }> {
-  const trimmedToken = token.trim();
-
-  if (trimmedToken) {
-    const authenticatedResponse = await fetch(url, {
-      headers: githubHeaders(trimmedToken),
-    });
-
-    if (authenticatedResponse.ok) {
-      return (await authenticatedResponse.json()) as { workflow_runs: GitHubWorkflowRun[] };
-    }
-
-    if (authenticatedResponse.status !== 403 && authenticatedResponse.status !== 404) {
-      throw new Error(await githubErrorMessage(authenticatedResponse));
-    }
-
-    const authenticatedError = await githubErrorMessage(authenticatedResponse.clone());
-    const publicResponse = await fetch(url, {
-      headers: githubPublicHeaders(),
-    });
-
-    if (publicResponse.ok) {
-      return (await publicResponse.json()) as { workflow_runs: GitHubWorkflowRun[] };
-    }
-
-    if (publicResponse.status === 403 || publicResponse.status === 404) {
-      throw new Error(
-        `${authenticatedError}. Deployment status needs Repository permissions > Actions set to Read-only if this repository is not publicly readable.`,
-      );
-    }
-
-    throw new Error(await githubErrorMessage(publicResponse));
-  }
-
-  const response = await fetch(url, {
-    headers: githubPublicHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(await githubErrorMessage(response));
-  }
-
-  return (await response.json()) as { workflow_runs: GitHubWorkflowRun[] };
-}
-
-function waitingForDeploymentRunState(target: DeploymentTarget): DeploymentState {
-  return {
-    kind: "waiting",
-    message: "Commit saved. Waiting for GitHub Actions to start the site deploy...",
-    commitUrl: target.commitUrl,
-    siteUrl: target.siteUrl,
-  };
-}
-
-function deploymentStateFromRun(run: GitHubWorkflowRun, target: DeploymentTarget): DeploymentState {
-  const actionsUrl = run.html_url ?? githubActionsUrl();
-  const common = {
-    commitUrl: target.commitUrl,
-    actionsUrl,
-    siteUrl: target.siteUrl,
-  };
-
-  if (run.status === "completed") {
-    if (run.conclusion === "success") {
-      return {
-        ...common,
-        kind: "success",
-        message: `${target.label} is deployed. The public site should include it now.`,
-      };
-    }
-
-    return {
-      ...common,
-      kind: "error",
-      message: `The deploy ${workflowConclusionLabel(run.conclusion)}. The GitHub commit is saved, but the public site did not update.`,
-    };
-  }
-
-  return {
-    ...common,
-    kind: run.status === "in_progress" ? "running" : "waiting",
-    message: `GitHub Actions is ${workflowStatusLabel(run.status)}. The public site will update after the deploy finishes.`,
-  };
-}
-
-function workflowStatusLabel(status: string) {
-  if (status === "in_progress") {
-    return "building and deploying";
-  }
-
-  if (status === "queued") {
-    return "queued";
-  }
-
-  if (status === "requested") {
-    return "starting";
-  }
-
-  if (status === "waiting" || status === "pending") {
-    return "waiting";
-  }
-
-  return status.replaceAll("_", " ");
-}
-
-function workflowConclusionLabel(conclusion: string | null) {
-  if (!conclusion) {
-    return "finished without a success result";
-  }
-
-  if (conclusion === "timed_out") {
-    return "timed out";
-  }
-
-  if (conclusion === "action_required") {
-    return "needs action";
-  }
-
-  return conclusion.replaceAll("_", " ");
-}
-
-function githubActionsUrl() {
-  return `https://github.com/${writerRepositoryFullName}/actions`;
-}
-
-function githubPublicHeaders() {
-  return {
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
 }
 
 function buildPublicEntryUrl(collection: CollectionDefinition, slug: string) {

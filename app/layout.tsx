@@ -1,7 +1,9 @@
 import type React from "react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { PublishingStatusFloat } from "@/components/publishing-status-float";
 import { AuthProvider } from "@/lib/github-auth-context";
+import { PublishingStatusProvider } from "@/lib/publishing-status-context";
 import { siteConfig } from "@/lib/site-config";
 import "./globals.css";
 import type { Metadata } from "next";
@@ -47,11 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className="dark">
       <body className={`${notoSans.variable} ${notoMono.variable} font-sans`}>
         <AuthProvider>
-          <div className="relative flex min-h-screen flex-col">
-            <SiteHeader />
-            <div className="flex-1">{children}</div>
-            <SiteFooter />
-          </div>
+          <PublishingStatusProvider>
+            <PublishingStatusFloat />
+            <div className="relative flex min-h-screen flex-col">
+              <SiteHeader />
+              <div className="flex-1">{children}</div>
+              <SiteFooter />
+            </div>
+          </PublishingStatusProvider>
         </AuthProvider>
       </body>
     </html>

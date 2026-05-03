@@ -132,6 +132,7 @@ Use weight and color sparingly. The system relies on size, spacing, family contr
 - Keep forms square and explicit: black background, zinc hairline borders, blue focus ring.
 - Keep dense utility panels, but remove rounded cards, shadows, blur, and light backgrounds.
 - Use semantic red/emerald panels for error and success states.
+- Publishing and deploy feedback appears as a fixed layout-level panel, so GitHub Actions status remains visible after navigating away from `/dashboard`.
 - Preserve all current publishing behavior: GitHub auth, collection loading, entry editing, media upload, content type creation, and deploy polling.
 
 ## Responsive Behavior
