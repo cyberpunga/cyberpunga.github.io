@@ -13,8 +13,12 @@ import {
   normalizeCollectionDefinition,
   normalizeContentSegment,
   orderCollectionDefinitions,
-  postCollectionDefinition,
 } from "@/lib/content-schema";
+import {
+  defaultCollectionDefinitions,
+  defaultPostCollectionDefinition,
+  mergeCollectionDefinitions,
+} from "@/lib/default-collections";
 import {
   buildGitHubTokenUrl,
   githubErrorMessage,
@@ -117,11 +121,11 @@ const textareaClass =
 
 export default function DashboardPage() {
   const { auth, signIn, signOut } = useAuth();
-  const [collections, setCollections] = useState<CollectionDefinition[]>([postCollectionDefinition]);
+  const [collections, setCollections] = useState<CollectionDefinition[]>(defaultCollectionDefinitions);
   const [collectionsState, setCollectionsState] = useState<ActionState>({ kind: "idle", message: "" });
-  const [selectedCollectionId, setSelectedCollectionId] = useState(postCollectionDefinition.id);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(defaultPostCollectionDefinition.id);
   const selectedCollection = useMemo(
-    () => collections.find((collection) => collection.id === selectedCollectionId) ?? collections[0] ?? postCollectionDefinition,
+    () => collections.find((collection) => collection.id === selectedCollectionId) ?? collections[0] ?? defaultPostCollectionDefinition,
     [collections, selectedCollectionId],
   );
   const [draft, setDraft] = useState<EntryDraft>(() => emptyEntryDraft(selectedCollection));
@@ -175,7 +179,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (auth.kind !== "signed-in" || !authToken) {
-      setCollections([postCollectionDefinition]);
+      setCollections(defaultCollectionDefinitions);
       setCollectionsState({ kind: "idle", message: "" });
       setEntries([]);
       setEntriesState({ kind: "idle", message: "" });
@@ -200,7 +204,7 @@ export default function DashboardPage() {
           return;
         }
 
-        setCollections([postCollectionDefinition]);
+        setCollections(defaultCollectionDefinitions);
         setCollectionsState({
           kind: "error",
           message: error instanceof Error ? error.message : "Could not load content types.",
@@ -220,7 +224,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!collections.some((collection) => collection.id === selectedCollectionId)) {
-      setSelectedCollectionId(collections[0]?.id ?? postCollectionDefinition.id);
+      setSelectedCollectionId(collections[0]?.id ?? defaultPostCollectionDefinition.id);
     }
   }, [collections, selectedCollectionId]);
 
@@ -1656,7 +1660,7 @@ async function loadCollectionsFromGitHub(token: string) {
   );
 
   if (response.status === 404) {
-    return [postCollectionDefinition];
+    return defaultCollectionDefinitions;
   }
 
   if (!response.ok) {
@@ -1666,7 +1670,7 @@ async function loadCollectionsFromGitHub(token: string) {
   const items = (await response.json()) as GitHubContentItem[] | GitHubContentItem;
 
   if (!Array.isArray(items)) {
-    return [postCollectionDefinition];
+    return defaultCollectionDefinitions;
   }
 
   const definitions = (
@@ -1676,9 +1680,7 @@ async function loadCollectionsFromGitHub(token: string) {
         .map((item) => loadCollectionDefinitionFromGitHub(item.name as string, token)),
     )
   ).filter((definition): definition is CollectionDefinition => Boolean(definition));
-  const hasPosts = definitions.some((definition) => definition.id === postCollectionDefinition.id);
-
-  return orderCollectionDefinitions(hasPosts ? definitions : [postCollectionDefinition, ...definitions]);
+  return mergeCollectionDefinitions(definitions);
 }
 
 async function loadCollectionDefinitionFromGitHub(id: string, token: string) {

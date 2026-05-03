@@ -77,9 +77,13 @@ content/
     <slug>/
       page.mdx          Contenido del artículo
       images/           Imágenes locales del artículo
+  texts/, photos/, ...
+    _type.json          Colecciones iniciales inspiradas en tipos de post de Tumblr
 lib/
   content.ts            Carga genérica de colecciones y entradas
   content-schema.ts     Tipos y validación liviana de colecciones
+  default-collections.ts
+                        Definiciones de colecciones incluidas para el dashboard cliente
   posts.ts              Carga, ordenamiento y metadata de posts
   site-config.ts        Configuración del sitio y del publicador
 .agents/
@@ -121,7 +125,7 @@ Y referenciarse desde MDX:
 ![Descripción de la imagen](./images/01.jpeg)
 ```
 
-También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con rutas cliente compatibles con exportación estática como `/dashboard#/<coleccion>/<slug>`.
+También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: arranca con las definiciones de colecciones incluidas en el repo, valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Al iniciar sesión, mezcla las definiciones remotas de GitHub sobre las incluidas en el build. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con rutas cliente compatibles con exportación estática como `/dashboard#/<coleccion>/<slug>`.
 
 El publicador crea entradas con esta misma estructura:
 
@@ -134,11 +138,29 @@ Para publicar, cada autor necesita acceso al repositorio y un fine-grained perso
 
 ## Tipos de contenido
 
-`posts` es la primera colección integrada. Su definición vive en:
+`posts` es la colección principal de artículos. Su definición vive en:
 
 ```text
 content/posts/_type.json
 ```
+
+El repo también trae colecciones iniciales inspiradas en los tipos de post de Tumblr:
+
+```text
+content/texts/       -> /textos
+content/photos/      -> /fotos
+content/photosets/   -> /fotogalerias
+content/quotes/      -> /citas
+content/links/       -> /enlaces
+content/chats/       -> /chats
+content/audios/      -> /audios
+content/videos/      -> /videos
+content/answers/     -> /respuestas
+```
+
+Estas colecciones pueden contener solo `_type.json` hasta que alguien publique la primera entrada.
+
+El menú superior se genera automáticamente desde las definiciones públicas de colecciones.
 
 El dashboard también permite crear nuevas colecciones. Cada colección nueva se guarda como:
 

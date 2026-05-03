@@ -1,0 +1,42 @@
+{
+  "id": "chats",
+  "label": "Chat",
+  "pluralLabel": "Chats",
+  "description": "Conversaciones, diálogos y transcripciones breves.",
+  "route": "chats",
+  "bodyLabel": "Transcripción",
+  "bodyPlaceholder": "Escribe el diálogo en Markdown. Ejemplo: ana: hola",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "participants",
+      "label": "Participantes",
+      "type": "list",
+      "required": false,
+      "placeholder": "ana, fran"
+    },
+    {
+      "name": "context",
+      "label": "Contexto",
+      "type": "text",
+      "required": false,
+      "placeholder": "Dónde o por qué ocurrió la conversación"
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "chat, diálogo"
+    }
+  ]
+}

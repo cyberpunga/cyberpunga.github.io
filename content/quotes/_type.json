@@ -1,0 +1,42 @@
+{
+  "id": "quotes",
+  "label": "Cita",
+  "pluralLabel": "Citas",
+  "description": "Citas, fragmentos y frases con atribución.",
+  "route": "citas",
+  "bodyLabel": "Cita",
+  "bodyPlaceholder": "Escribe la cita en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "source",
+      "label": "Fuente",
+      "type": "text",
+      "required": false,
+      "placeholder": "Persona, libro, charla o archivo"
+    },
+    {
+      "name": "source_url",
+      "label": "URL de la fuente",
+      "type": "text",
+      "required": false,
+      "placeholder": "https://..."
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "cita, fragmento"
+    }
+  ]
+}

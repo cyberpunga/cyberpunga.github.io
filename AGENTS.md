@@ -12,11 +12,14 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - Content collections live in `content/<collection>/`.
 - Each collection has a `content/<collection>/_type.json` definition with labels, route, sort, and dashboard field schema.
 - Posts live in `content/posts/<slug>/page.mdx` but keep public URLs at `/posts/<slug>`.
+- Tumblr-style starter collections live in `content/texts`, `content/photos`, `content/photosets`, `content/quotes`, `content/links`, `content/chats`, `content/audios`, `content/videos`, and `content/answers`.
 - Content metadata is loaded from MDX frontmatter.
 - `lib/content.ts` scans collection directories, imports MDX modules, reads `frontmatter`, and supports generic static collection routes.
 - `lib/posts.ts` wraps `lib/content.ts` for the custom posts UI and sorts posts newest-first via the posts collection definition.
 - `app/[collection]/page.tsx` and `app/[collection]/[slug]/page.tsx` statically generate collection list/detail pages with `generateStaticParams`; they special-case `posts` to preserve the custom article UX.
 - `app/posts/posts-list.tsx` is a client component for query-string tag filtering.
+- `components/site-header.tsx` generates its menu from public collection definitions via `getGenericCollections()`.
+- `lib/default-collections.ts` bundles repo-native `_type.json` definitions for client-side dashboard bootstrapping.
 - Shared UI lives in `components/`.
 - shadcn-style primitives live in `components/ui/`.
 - Site-wide config and `/dashboard` publishing config live in `lib/site-config.ts`.
@@ -61,9 +64,11 @@ content/<collection>/_type.json
 content/<collection>/<slug>/page.mdx
 ```
 
+Starter collections can be empty and contain only `_type.json` until an author publishes the first entry.
+
 `_type.json` supports v1 light custom fields: `text`, `textarea`, `date`, `boolean`, `select`, `list`, and `tags`. Every publishable entry has implicit `title`, `description`, and MDX body fields.
 
-Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, ensures `content/users/<github-login>/page.mdx` exists for the signed-in user without overwriting an existing entry, loads collection definitions and entries from GitHub, generates frontmatter, creates and edits `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Existing entries are edited in place with their current GitHub file SHA; static-export-safe dashboard deep links use hash client routes like `/dashboard#/<collection>/<slug>`. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
+Non-technical authors can use `/dashboard`. It starts with bundled repo-native collection definitions, validates a locally stored GitHub token before rendering the editor, ensures `content/users/<github-login>/page.mdx` exists for the signed-in user without overwriting an existing entry, loads collection definitions and entries from GitHub, merges remote definitions over bundled defaults, generates frontmatter, creates and edits `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Existing entries are edited in place with their current GitHub file SHA; static-export-safe dashboard deep links use hash client routes like `/dashboard#/<collection>/<slug>`. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
 
 ## Commands
 

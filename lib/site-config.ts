@@ -7,16 +7,6 @@ export const siteConfig = {
     twitter: "https://x.com/cyberpunga", // Replace with actual social links if you have them
     github: "https://github.com/cyberpunga",
   },
-  mainNav: [
-    {
-      title: "Artículos",
-      href: "/posts",
-    },
-    // {
-    //   title: "Acerca de",
-    //   href: "/about",
-    // },
-  ],
   footerNav: {
     resources: [
       { title: "Inicio", href: "/" },
