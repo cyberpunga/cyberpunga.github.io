@@ -9,10 +9,12 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-black">
       <main className="container mx-auto px-4 py-12">
-        <div className="mx-auto">
-          <h1 className="mb-6 text-zinc-900 dark:text-zinc-50">Acerca de {siteConfig.name}</h1>
+        <div className="mx-auto max-w-4xl">
+          <h1 className="mb-8 font-mono text-4xl font-normal text-zinc-50 md:text-5xl">
+            Acerca de {siteConfig.name}
+          </h1>
 
           <ProseContainer>
             <p>

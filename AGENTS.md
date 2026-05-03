@@ -24,6 +24,7 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - shadcn-style primitives live in `components/ui/`.
 - Site-wide config and `/dashboard` publishing config live in `lib/site-config.ts`.
 - The repo-native static dashboard lives at `app/dashboard/page.tsx` and is served at `/dashboard`.
+- `DESIGN.md` documents the dark cyberpunga visual system: black canvas, hairline borders, Noto Sans/Noto Sans Mono, sparse chrome, editorial media, and dashboard usability constraints.
 - Repo-local Codex skills live in `.agents/skills/`.
 
 ## Local Skills
@@ -116,7 +117,6 @@ Dashboard-created collection routes become public after the next static build/de
 ## Known Gotchas
 
 - The home page assumes at least one post exists.
-- `app/globals.css` appears to have a typo: `var(----font-noto-sans)` should likely be `var(--font-noto-sans)`.
 - `next lint` is deprecated.
 - `pnpm start` is not the right production path for static export; serve the generated `out/` directory instead.
 - The public route segments `posts`, `dashboard`, and `about` are reserved for content collections.

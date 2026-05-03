@@ -28,23 +28,20 @@ interface PostCardProps {
 
 export function BlogPostCard({ slug, frontmatter }: PostCardProps) {
   return (
-    <article className="group h-full flex flex-col border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-background/20 backdrop-blur-[2px] transition-all hover:shadow-md dark:hover:shadow-zinc-900/30">
+    <article className="group flex h-full flex-col border border-zinc-900 bg-black transition-colors hover:border-zinc-700">
       <div className="p-6 flex-1 flex flex-col">
-        <div className="flex items-center space-x-2 mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+        <div className="mb-3 flex items-center space-x-2 font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
           <time>{formatDate(frontmatter.date)}</time>
         </div>
 
-        <h3 className="mb-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50 line-clamp-3 group-hover:text-primary">
+        <h3 className="mb-3 line-clamp-3 font-mono text-xl font-normal text-zinc-50 transition-colors group-hover:text-[#c3d9f3]">
           <Link href={`/posts/${slug}`}>{frontmatter.title}</Link>
         </h3>
 
-        <p className="line-clamp-6 text-zinc-700 dark:text-zinc-300 flex-grow">{frontmatter.description}</p>
+        <p className="line-clamp-6 flex-grow text-sm leading-6 text-zinc-400">{frontmatter.description}</p>
       </div>
 
-      <div className="h-8 flex items-center overflow-hidden relative bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
-        <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-zinc-50 dark:from-zinc-900 to-transparent z-10"></div>
-        <div className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-zinc-50 dark:from-zinc-900 to-transparent z-10"></div>
-
+      <div className="relative flex min-h-10 items-center overflow-hidden border-t border-zinc-900 bg-black">
         <SimpleMarquee className="gap-2 [&>.flex]:gap-2" slowdownOnHover={true} direction="left">
           {frontmatter.tags
             .map((tag) => slugify(tag.toLowerCase()))

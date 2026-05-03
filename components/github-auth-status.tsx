@@ -9,7 +9,7 @@ export function GitHubAuthStatus() {
   const { auth, signOut } = useAuth();
 
   if (auth.kind === "checking") {
-    return <span className="hidden text-sm text-zinc-500 dark:text-zinc-400 sm:inline">Checking auth...</span>;
+    return <span className="hidden font-mono text-xs uppercase tracking-[0.16em] text-zinc-500 sm:inline">Checking auth...</span>;
   }
 
   if (auth.kind === "signed-in") {

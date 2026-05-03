@@ -145,9 +145,9 @@ const emptyTypeDraft = (): TypeDraft => ({
 });
 
 const baseInputClass =
-  "h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
+  "h-11 border border-zinc-800 bg-black px-3 text-base text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]";
 const textareaClass =
-  "resize-y rounded-md border border-zinc-300 bg-background px-3 py-2 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
+  "resize-y border border-zinc-800 bg-black px-3 py-2 text-base text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]";
 const deployPollIntervalMs = 6000;
 const deployRunStartTimeoutMs = 120000;
 const emptyDeploymentState = (): DeploymentState => ({ kind: "idle", message: "" });
@@ -793,7 +793,7 @@ export default function DashboardPage() {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
         <div className="flex h-48 items-center justify-center">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Checking authentication...</p>
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-500">Checking authentication...</p>
         </div>
       </main>
     );
@@ -802,18 +802,18 @@ export default function DashboardPage() {
   if (auth.kind !== "signed-in") {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
-        <header className="border-b border-zinc-200 pb-6 dark:border-zinc-800">
-          <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+        <header className="border-b border-zinc-900 pb-6">
+          <p className="mb-2 font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">
             Dashboard
           </p>
-          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">Sign in with GitHub</h1>
+          <h1 className="font-mono text-3xl font-normal text-zinc-50 md:text-4xl">Sign in with GitHub</h1>
         </header>
 
-        <section className="rounded-lg border border-zinc-200 bg-background p-5 dark:border-zinc-800">
+        <section className="border border-zinc-900 bg-black p-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Repository access</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{writerRepositoryFullName}</p>
+              <h2 className="font-mono text-lg font-normal text-zinc-50">Repository access</h2>
+              <p className="mt-1 font-mono text-xs text-zinc-500">{writerRepositoryFullName}</p>
             </div>
             <Button asChild variant="outline">
               <a href={tokenUrl} target="_blank" rel="noreferrer">
@@ -825,7 +825,7 @@ export default function DashboardPage() {
           </div>
 
           <label className="mb-4 flex flex-col gap-2">
-            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">GitHub token</span>
+            <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">GitHub token</span>
             <input
               type="password"
               value={tokenInput}
@@ -840,13 +840,13 @@ export default function DashboardPage() {
             Sign in
           </Button>
 
-          <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+          <p className="mt-4 text-sm leading-6 text-zinc-500">
             The token link pre-fills the owner, Contents write, and Actions read permissions. In GitHub, choose Only
             select repositories, then select {writerRepository.name}. The token stays in this browser.
           </p>
 
           {auth.kind === "invalid" ? (
-            <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+            <p className="mt-4 border border-red-900/60 bg-red-950/30 p-3 text-sm text-red-200">
               {auth.message || "Authentication failed. Check your token and try again."}
             </p>
           ) : null}
@@ -857,17 +857,17 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
-      <header className="flex flex-col gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-4 border-b border-zinc-900 pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          <p className="mb-2 font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">
             Dashboard
           </p>
-          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">
+          <h1 className="font-mono text-3xl font-normal text-zinc-50 md:text-4xl">
             {isEditing ? "Edit" : "New"} {selectedCollection.label.toLowerCase()}
           </h1>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-zinc-500">
             Signed in as{" "}
-            <Link href={auth.user.htmlUrl} target="_blank" className="underline">
+            <Link href={auth.user.htmlUrl} target="_blank" className="text-[#c3d9f3] underline">
               @{auth.user.login}
             </Link>
           </p>
@@ -893,10 +893,10 @@ export default function DashboardPage() {
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Title</span>
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Title</span>
                 <input
                   value={draft.title}
                   onChange={(event) => updateDraft("title", event.target.value)}
@@ -906,7 +906,7 @@ export default function DashboardPage() {
               </label>
 
               <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Description</span>
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Description</span>
                 <textarea
                   value={draft.description}
                   onChange={(event) => updateDraft("description", event.target.value)}
@@ -927,12 +927,12 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
+              <h2 className="font-mono text-lg font-normal text-zinc-50">
                 {selectedCollection.bodyLabel ?? "Body"}
               </h2>
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">
+              <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 border border-zinc-800 px-3 py-2 font-mono text-xs uppercase tracking-[0.16em] text-zinc-100 transition-colors hover:border-zinc-500">
                 <ImagePlus className="size-4" />
                 Add images
                 <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageSelection} />
@@ -943,21 +943,21 @@ export default function DashboardPage() {
               value={draft.body}
               onChange={(event) => updateDraft("body", event.target.value)}
               rows={18}
-              className="min-h-[420px] w-full resize-y rounded-md border border-zinc-300 bg-background px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
+              className="min-h-[420px] w-full resize-y border border-zinc-800 bg-black px-3 py-3 font-mono text-sm leading-6 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]"
               placeholder={selectedCollection.bodyPlaceholder ?? "Write in Markdown."}
             />
           </section>
 
           {images.length > 0 ? (
-            <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
-              <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Images</h2>
+            <section className="border border-zinc-900 bg-black p-4 md:p-5">
+              <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Images</h2>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {images.map((image) => (
-                  <div key={image.id} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  <div key={image.id} className="overflow-hidden border border-zinc-900">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={image.previewUrl} alt="" className="aspect-video w-full object-cover" />
                     <div className="space-y-3 p-3">
-                      <p className="truncate font-mono text-xs text-zinc-600 dark:text-zinc-400">{image.safeName}</p>
+                      <p className="truncate font-mono text-xs text-zinc-500">{image.safeName}</p>
                       <div className="flex gap-2">
                         <Button type="button" variant="outline" size="sm" onClick={() => insertImageMarkdown(image)}>
                           <ImagePlus />
@@ -975,9 +975,9 @@ export default function DashboardPage() {
             </section>
           ) : null}
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">New content type</h2>
+              <h2 className="font-mono text-lg font-normal text-zinc-50">New content type</h2>
               <Button type="button" variant="outline" size="sm" onClick={() => addTypeField()}>
                 <Plus />
                 Field
@@ -985,7 +985,7 @@ export default function DashboardPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Singular label</span>
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Singular label</span>
                 <input
                   value={typeDraft.label}
                   onChange={(event) => setTypeDraft((current) => ({ ...current, label: event.target.value }))}
@@ -995,7 +995,7 @@ export default function DashboardPage() {
               </label>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Plural label</span>
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Plural label</span>
                 <input
                   value={typeDraft.pluralLabel}
                   onChange={(event) => setTypeDraft((current) => ({ ...current, pluralLabel: event.target.value }))}
@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
               </label>
 
               <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Description</span>
+                <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Description</span>
                 <textarea
                   value={typeDraft.description}
                   onChange={(event) => setTypeDraft((current) => ({ ...current, description: event.target.value }))}
@@ -1043,11 +1043,11 @@ export default function DashboardPage() {
         </div>
 
         <aside className="space-y-6">
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
+          <section className="border border-zinc-900 bg-black p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Content types</h2>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <h2 className="font-mono text-lg font-normal text-zinc-50">Content types</h2>
+                <p className="mt-1 text-xs text-zinc-500">
                   {collectionsState.message || "Ready"}
                 </p>
               </div>
@@ -1062,19 +1062,19 @@ export default function DashboardPage() {
                   key={collection.id}
                   type="button"
                   onClick={() => selectCollection(collection.id)}
-                  className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                  className={`w-full border px-3 py-2 text-left transition-colors ${
                     selectedCollection.id === collection.id
-                      ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-900"
-                      : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                      ? "border-zinc-100 bg-zinc-950"
+                      : "border-zinc-900 hover:border-zinc-700"
                   }`}
                 >
                   <span className="flex items-start gap-2">
-                    <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                    <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500" />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                      <span className="block truncate text-sm font-medium text-zinc-50">
                         {collection.pluralLabel}
                       </span>
-                      <span className="mt-1 block truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="mt-1 block truncate font-mono text-xs text-zinc-500">
                         /{collection.route}
                       </span>
                     </span>
@@ -1084,11 +1084,11 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
+          <section className="border border-zinc-900 bg-black p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Entries</h2>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{entriesState.message || "Ready"}</p>
+                <h2 className="font-mono text-lg font-normal text-zinc-50">Entries</h2>
+                <p className="mt-1 text-xs text-zinc-500">{entriesState.message || "Ready"}</p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={refreshEntries}>
                 <RefreshCw />
@@ -1107,19 +1107,19 @@ export default function DashboardPage() {
                       key={entry.slug}
                       type="button"
                       onClick={() => loadEntryForEdit(entry.slug)}
-                      className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                      className={`w-full border px-3 py-2 text-left transition-colors ${
                         activeEditingEntry?.slug === entry.slug
-                          ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-900"
-                          : "border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                          ? "border-zinc-100 bg-zinc-950"
+                          : "border-zinc-900 hover:border-zinc-700"
                       }`}
                     >
                       <span className="flex items-start gap-2">
-                        <Pencil className="mt-0.5 size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                        <Pencil className="mt-0.5 size-4 shrink-0 text-zinc-500" />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-zinc-950 dark:text-zinc-50">
+                          <span className="block truncate text-sm font-medium text-zinc-50">
                             {entry.title}
                           </span>
-                          <span className="mt-1 block truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                          <span className="mt-1 block truncate font-mono text-xs text-zinc-500">
                             {entry.slug}
                           </span>
                         </span>
@@ -1128,27 +1128,27 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <p className="rounded-md border border-dashed border-zinc-300 p-3 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                <p className="border border-dashed border-zinc-800 p-3 text-sm text-zinc-500">
                   No entries found.
                 </p>
               )}
             </div>
           </section>
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Session</h2>
+          <section className="border border-zinc-900 bg-black p-4">
+            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Session</h2>
             <dl className="mb-4 space-y-3 text-sm">
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">GitHub</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">@{auth.user.login}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">GitHub</dt>
+                <dd className="break-all font-mono text-zinc-100">@{auth.user.login}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Access</dt>
-                <dd className="text-zinc-900 dark:text-zinc-100">Write enabled</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Access</dt>
+                <dd className="text-zinc-100">Write enabled</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Types</dt>
-                <dd className="text-zinc-900 dark:text-zinc-100">{collectionsState.message || "Ready"}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Types</dt>
+                <dd className="text-zinc-100">{collectionsState.message || "Ready"}</dd>
               </div>
             </dl>
             <div className="grid gap-2">
@@ -1163,51 +1163,51 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Output</h2>
+          <section className="border border-zinc-900 bg-black p-4">
+            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Output</h2>
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Repository</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepositoryFullName}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Repository</dt>
+                <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Branch</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepository.branch}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
+                <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Type</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{selectedCollection.id}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Type</dt>
+                <dd className="break-all font-mono text-zinc-100">{selectedCollection.id}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Mode</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Mode</dt>
+                <dd className="break-all font-mono text-zinc-100">
                   {isEditing ? "edit" : "new"}
                 </dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Route</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">/{selectedCollection.route}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Route</dt>
+                <dd className="break-all font-mono text-zinc-100">/{selectedCollection.route}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Slug</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{outputSlug}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Slug</dt>
+                <dd className="break-all font-mono text-zinc-100">{outputSlug}</dd>
               </div>
               <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Path</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{entryPath}</dd>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Path</dt>
+                <dd className="break-all font-mono text-zinc-100">{entryPath}</dd>
               </div>
               {selectedTags.length > 0 ? (
                 <div>
-                  <dt className="text-zinc-500 dark:text-zinc-400">Tags</dt>
-                  <dd className="text-zinc-900 dark:text-zinc-100">{selectedTags.join(", ")}</dd>
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Tags</dt>
+                  <dd className="text-zinc-100">{selectedTags.join(", ")}</dd>
                 </div>
               ) : null}
             </dl>
           </section>
 
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">MDX</h2>
-            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md bg-zinc-100 p-3 font-mono text-xs leading-5 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+          <section className="border border-zinc-900 bg-black p-4">
+            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">MDX</h2>
+            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap border border-zinc-900 bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-200">
               {mdx}
             </pre>
           </section>
@@ -1267,14 +1267,14 @@ function FieldInput({
 }) {
   if (field.type === "boolean") {
     return (
-      <label className="flex min-h-11 items-center gap-3 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
+      <label className="flex min-h-11 items-center gap-3 border border-zinc-800 px-3">
         <input
           type="checkbox"
           checked={Boolean(value)}
           onChange={(event) => onChange(event.target.checked)}
-          className="size-4 rounded border-zinc-300"
+          className="size-4 border-zinc-700 bg-black accent-zinc-100"
         />
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{field.label}</span>
+        <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">{field.label}</span>
       </label>
     );
   }
@@ -1326,9 +1326,9 @@ function FieldInput({
 
 function FieldLabel({ field }: { field: ContentFieldDefinition }) {
   return (
-    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+    <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">
       {field.label}
-      {field.required ? <span className="text-red-600 dark:text-red-400"> *</span> : null}
+      {field.required ? <span className="text-red-400"> *</span> : null}
     </span>
   );
 }
@@ -1349,12 +1349,12 @@ function PublishingStatusPanel({
 
   return (
     <section
-      className={`rounded-lg border p-4 text-sm ${
+      className={`border p-4 text-sm ${
         isError
-          ? "border-red-300 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+          ? "border-red-900/60 bg-red-950/30 text-red-200"
           : isSuccess
-            ? "border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100"
-            : "border-zinc-200 bg-background text-zinc-800 dark:border-zinc-800 dark:text-zinc-200"
+            ? "border-emerald-900/60 bg-emerald-950/30 text-emerald-100"
+            : "border-zinc-900 bg-black text-zinc-200"
       }`}
     >
       {actionState.message ? <p>{actionState.message}</p> : null}
@@ -1390,18 +1390,18 @@ function PublishingStatusPanel({
 
 function DeploymentStatusIcon({ kind }: { kind: DeploymentState["kind"] }) {
   if (kind === "success") {
-    return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-300" />;
+    return <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-300" />;
   }
 
   if (kind === "error") {
-    return <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-600 dark:text-red-300" />;
+    return <CircleAlert className="mt-0.5 size-4 shrink-0 text-red-300" />;
   }
 
   if (kind === "running") {
     return <RefreshCw className="mt-0.5 size-4 shrink-0 animate-spin" />;
   }
 
-  return <Clock3 className="mt-0.5 size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />;
+  return <Clock3 className="mt-0.5 size-4 shrink-0 text-zinc-500" />;
 }
 
 function NewFieldEditor({
@@ -1414,9 +1414,9 @@ function NewFieldEditor({
   onRemove: () => void;
 }) {
   return (
-    <div className="grid gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 md:grid-cols-[minmax(0,1fr)_160px_auto]">
+    <div className="grid gap-3 border border-zinc-900 p-3 md:grid-cols-[minmax(0,1fr)_160px_auto]">
       <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Field label</span>
+        <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Field label</span>
         <input
           value={field.label}
           onChange={(event) => onChange({ ...field, label: event.target.value })}
@@ -1425,7 +1425,7 @@ function NewFieldEditor({
         />
       </label>
       <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Type</span>
+        <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Type</span>
         <select
           value={field.type}
           onChange={(event) => onChange({ ...field, type: event.target.value as ContentFieldType })}
@@ -1439,14 +1439,14 @@ function NewFieldEditor({
         </select>
       </label>
       <div className="flex items-end gap-2">
-        <label className="flex h-11 items-center gap-2 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
+        <label className="flex h-11 items-center gap-2 border border-zinc-800 px-3">
           <input
             type="checkbox"
             checked={field.required}
             onChange={(event) => onChange({ ...field, required: event.target.checked })}
-            className="size-4 rounded border-zinc-300"
+            className="size-4 border-zinc-700 bg-black accent-zinc-100"
           />
-          <span className="text-sm text-zinc-800 dark:text-zinc-200">Required</span>
+          <span className="text-sm text-zinc-300">Required</span>
         </label>
         <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
           <Trash2 />
@@ -1454,7 +1454,7 @@ function NewFieldEditor({
         </Button>
       </div>
       <label className="flex flex-col gap-2 md:col-span-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Placeholder</span>
+        <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Placeholder</span>
         <input
           value={field.placeholder}
           onChange={(event) => onChange({ ...field, placeholder: event.target.value })}
@@ -1464,7 +1464,7 @@ function NewFieldEditor({
       </label>
       {field.type === "select" ? (
         <label className="flex flex-col gap-2 md:col-span-3">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Options</span>
+          <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">Options</span>
           <input
             value={field.optionsInput}
             onChange={(event) => onChange({ ...field, optionsInput: event.target.value })}

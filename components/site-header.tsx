@@ -19,11 +19,13 @@ export async function SiteHeader() {
   const collections = await getGenericCollections();
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-zinc-200 bg-background/50 backdrop-blur-[2px] dark:border-zinc-800">
+    <header className="sticky top-0 z-40 w-full border-b border-zinc-900 bg-black">
       <div className="container mx-auto flex h-16 items-center gap-3 px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2 lg:flex-none">
           <Link href="/" className="flex min-w-0 items-center space-x-2">
-            <span className="text-xl font-mono font-bold text-zinc-900 dark:text-zinc-50">{siteConfig.name}</span>
+            <span className="font-mono text-sm font-normal uppercase tracking-[0.32em] text-zinc-50">
+              {siteConfig.name}
+            </span>
           </Link>
         </div>
         <nav
@@ -34,7 +36,7 @@ export async function SiteHeader() {
             <Link
               key={collection.id}
               href={`/${collection.route}`}
-              className="shrink-0 text-sm font-medium text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-50"
+              className="shrink-0 font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:text-zinc-50"
             >
               {collection.pluralLabel}
             </Link>
@@ -65,7 +67,7 @@ function MobileCollectionsMenu({ collections }: { collections: CollectionDefinit
             <DropdownMenuItem key={collection.id} asChild>
               <Link href={`/${collection.route}`} className="flex w-full items-center justify-between gap-4">
                 <span>{collection.pluralLabel}</span>
-                <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">/{collection.route}</span>
+                <span className="font-mono text-xs text-zinc-500">/{collection.route}</span>
               </Link>
             </DropdownMenuItem>
           ))}
