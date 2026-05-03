@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import type { MdxEditorProps } from "@/components/dashboard/mdx-editor";
 import {
   type CollectionDefinition,
   type ContentFieldDefinition,
@@ -43,8 +44,22 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const MdxEditor = dynamic<MdxEditorProps>(
+  () => import("@/components/dashboard/mdx-editor").then((module) => module.MdxEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="border border-zinc-900 bg-black p-4 md:p-5">
+        <h2 className="font-mono text-lg font-normal text-zinc-50">Body</h2>
+        <p className="mt-2 text-sm text-zinc-500">Loading Markdown editor...</p>
+      </section>
+    ),
+  },
+);
 
 type SelectedImage = {
   id: string;
@@ -147,7 +162,6 @@ export default function DashboardPage() {
   const [routeState, setRouteState] = useState({ collectionId: "", entrySlug: "" });
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
   const [tokenInput, setTokenInput] = useState("");
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const imagesRef = useRef<SelectedImage[]>([]);
 
   const authToken = auth.kind === "signed-in" ? auth.token : "";
@@ -160,6 +174,11 @@ export default function DashboardPage() {
   const entryPath = activeEditingEntry
     ? activeEditingEntry.path
     : `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
+  const previewImageBaseUrl = activeEditingEntry
+    ? `https://raw.githubusercontent.com/${writerRepositoryFullName}/${writerRepository.branch}/content/${encodeURIComponent(
+        selectedCollection.id,
+      )}/${encodeURIComponent(activeEditingEntry.slug)}/images`
+    : "";
   const selectedTags = getTagsForCollection(selectedCollection, draft);
 
   useEffect(() => {
@@ -382,11 +401,12 @@ export default function DashboardPage() {
     }
   }
 
-  function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    const existingNames = new Set([...existingImageNames, ...images.map((image) => image.safeName)]);
-    const nextImages = files.map((file, index) => {
-      const safeName = uniqueFileName(sanitizeFileName(file.name), existingNames, images.length + index + 1);
+  function stageImageFiles(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const currentImages = imagesRef.current;
+    const existingNames = new Set([...existingImageNames, ...currentImages.map((image) => image.safeName)]);
+    const nextImages = imageFiles.map((file, index) => {
+      const safeName = uniqueFileName(sanitizeFileName(file.name), existingNames, currentImages.length + index + 1);
       existingNames.add(safeName);
 
       return {
@@ -396,9 +416,12 @@ export default function DashboardPage() {
         previewUrl: URL.createObjectURL(file),
       };
     });
+    const nextImageState = [...currentImages, ...nextImages];
 
-    setImages((current) => [...current, ...nextImages]);
-    event.target.value = "";
+    imagesRef.current = nextImageState;
+    setImages(nextImageState);
+
+    return nextImages;
   }
 
   function removeImage(id: string) {
@@ -408,37 +431,23 @@ export default function DashboardPage() {
         URL.revokeObjectURL(image.previewUrl);
       }
 
-      return current.filter((item) => item.id !== id);
+      const nextImages = current.filter((item) => item.id !== id);
+      imagesRef.current = nextImages;
+
+      return nextImages;
     });
   }
 
   function clearSelectedImages() {
     setImages((current) => {
       current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      imagesRef.current = [];
       return [];
     });
   }
 
   function insertImageMarkdown(image: SelectedImage) {
-    const alt = image.safeName.replace(/\.[^.]+$/, "").replaceAll("-", " ");
-    const snippet = `\n\n![${alt}](./images/${image.safeName})\n`;
-    const textarea = bodyRef.current;
-
-    if (!textarea) {
-      updateDraft("body", `${draft.body}${snippet}`);
-      return;
-    }
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const nextBody = `${draft.body.slice(0, start)}${snippet}${draft.body.slice(end)}`;
-    updateDraft("body", nextBody);
-
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + snippet.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+    updateDraft("body", appendMarkdownSnippet(draft.body, buildImageMarkdown(image)));
   }
 
   function selectCollection(collectionId: string) {
@@ -846,26 +855,15 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="border border-zinc-900 bg-black p-4 md:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="font-mono text-lg font-normal text-zinc-50">
-                {selectedCollection.bodyLabel ?? "Body"}
-              </h2>
-              <label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 border border-zinc-800 px-3 py-2 font-mono text-xs uppercase tracking-[0.16em] text-zinc-100 transition-colors hover:border-zinc-500">
-                <ImagePlus className="size-4" />
-                Add images
-                <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageSelection} />
-              </label>
-            </div>
-            <textarea
-              ref={bodyRef}
-              value={draft.body}
-              onChange={(event) => updateDraft("body", event.target.value)}
-              rows={18}
-              className="min-h-[420px] w-full resize-y border border-zinc-800 bg-black px-3 py-3 font-mono text-sm leading-6 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-[#c3d9f3] focus:ring-1 focus:ring-[#c3d9f3]"
-              placeholder={selectedCollection.bodyPlaceholder ?? "Write in Markdown."}
-            />
-          </section>
+          <MdxEditor
+            label={selectedCollection.bodyLabel ?? "Body"}
+            value={draft.body}
+            onChange={(value) => updateDraft("body", value)}
+            placeholder={selectedCollection.bodyPlaceholder ?? "Write in Markdown."}
+            images={images}
+            existingImageBaseUrl={previewImageBaseUrl}
+            onImagesAdded={stageImageFiles}
+          />
 
           {images.length > 0 ? (
             <section className="border border-zinc-900 bg-black p-4 md:p-5">
@@ -1983,6 +1981,18 @@ function base64ToText(base64: string) {
   const binary = atob(base64.replace(/\s/g, ""));
   const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
   return new TextDecoder().decode(bytes);
+}
+
+function appendMarkdownSnippet(body: string, snippet: string) {
+  const trimmedBody = body.trimEnd();
+
+  return `${trimmedBody}${trimmedBody ? "\n\n" : ""}${snippet}\n`;
+}
+
+function buildImageMarkdown(image: SelectedImage) {
+  const alt = image.safeName.replace(/\.[^.]+$/, "").replaceAll("-", " ");
+
+  return `![${alt}](./images/${image.safeName})`;
 }
 
 function sanitizeFileName(fileName: string) {
