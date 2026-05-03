@@ -215,7 +215,7 @@ export async function githubErrorMessage(response: Response) {
 async function githubContentsWriteErrorMessage(response: Response) {
   const message = await githubErrorMessage(response);
 
-  return `${message}. Create a fine-grained GitHub token for ${writerRepositoryFullName} with Repository access set to ${writerRepository.name}, Repository permissions > Contents set to Read and write, and any required organization approval completed.`;
+  return `${message}. Create a fine-grained GitHub token for ${writerRepositoryFullName} with Repository access set to ${writerRepository.name}, Repository permissions > Contents set to Read and write, Repository permissions > Actions set to Read-only, and any required organization approval completed.`;
 }
 
 async function githubInvalidTokenErrorMessage(response: Response) {

@@ -125,7 +125,7 @@ Y referenciarse desde MDX:
 ![Descripción de la imagen](./images/01.jpeg)
 ```
 
-También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: arranca con las definiciones de colecciones incluidas en el repo, valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Al iniciar sesión, mezcla las definiciones remotas de GitHub sobre las incluidas en el build. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con rutas cliente compatibles con exportación estática como `/dashboard#/<coleccion>/<slug>`.
+También se pueden crear y editar artículos desde `/dashboard`. Es un dashboard estático del propio sitio: arranca con las definiciones de colecciones incluidas en el repo, valida un token de GitHub guardado en el navegador, lista las entradas existentes de cada colección, genera el frontmatter, arma el archivo MDX y usa la API de GitHub para escribir commits en `cyberpunga/cyberpunga.github.io` sobre `main`. Después de publicar o editar, muestra el estado del deploy de GitHub Actions asociado al commit para avisar cuándo el sitio público terminó de actualizarse. Al iniciar sesión, mezcla las definiciones remotas de GitHub sobre las incluidas en el build. Las entradas existentes se editan en su ruta actual usando el SHA del archivo en GitHub, y se pueden enlazar con rutas cliente compatibles con exportación estática como `/dashboard#/<coleccion>/<slug>`.
 
 El publicador crea entradas con esta misma estructura:
 
@@ -134,7 +134,7 @@ content/posts/<slug>/page.mdx
 content/posts/<slug>/images/
 ```
 
-Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permiso `Contents: write` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor. Al iniciar sesión, el flujo de autenticación también crea `content/users/<login>/page.mdx` desde el perfil de GitHub si todavía no existe; si ya existe, no lo sobrescribe.
+Para publicar, cada autor necesita acceso al repositorio y un fine-grained personal access token de GitHub con permisos `Contents: write` y `Actions: read` sobre este repo. `/dashboard` incluye un enlace prellenado desde `lib/site-config.ts` para crear ese token; GitHub permite prellenar el dueño del recurso y permisos, pero el autor debe elegir `Only select repositories` y seleccionar `cyberpunga.github.io`. El token se guarda solo en el navegador del autor. Al iniciar sesión, el flujo de autenticación también crea `content/users/<login>/page.mdx` desde el perfil de GitHub si todavía no existe; si ya existe, no lo sobrescribe.
 
 ## Tipos de contenido
 

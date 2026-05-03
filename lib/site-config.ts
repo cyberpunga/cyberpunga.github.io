@@ -32,7 +32,11 @@ export const siteConfig = {
       expiresInDays: 90,
       requiredPermissions: {
         contents: "write",
+        actions: "read",
       },
+    },
+    deployment: {
+      workflowName: "Deploy Next.js site to Pages",
     },
     storage: {
       tokenKey: "cyberpunga:github-token",
