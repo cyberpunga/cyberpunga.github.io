@@ -29,9 +29,13 @@ import {
   writerStorage,
 } from "@/lib/github-auth";
 import { useAuth } from "@/lib/github-auth-context";
-import { usePublishingStatus } from "@/lib/publishing-status-context";
+import { type DeploymentState, type PublishingActionState, usePublishingStatus } from "@/lib/publishing-status-context";
 import { siteConfig } from "@/lib/site-config";
 import {
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
   ExternalLink,
   FileText,
   ImagePlus,
@@ -99,6 +103,30 @@ type EditingEntry = {
   sha: string;
 };
 
+type DashboardRoute =
+  | { view: "overview" }
+  | { view: "collection"; collectionId: string }
+  | { view: "new-entry"; collectionId: string }
+  | { view: "edit-entry"; collectionId: string; entrySlug: string }
+  | { view: "new-type" };
+
+type CollectionEntriesCache = {
+  entries: EntrySummary[];
+  state: ActionState;
+};
+
+type DeploymentHistoryRun = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  createdAt: string;
+  updatedAt: string;
+  htmlUrl: string;
+  headSha: string;
+  actorLogin?: string;
+};
+
 type NewFieldDraft = {
   id: string;
   label: string;
@@ -156,21 +184,29 @@ export default function DashboardPage() {
   const [typeDraft, setTypeDraft] = useState<TypeDraft>(emptyTypeDraft);
   const [images, setImages] = useState<SelectedImage[]>([]);
   const [existingImageNames, setExistingImageNames] = useState<Set<string>>(() => new Set());
-  const [entries, setEntries] = useState<EntrySummary[]>([]);
-  const [entriesState, setEntriesState] = useState<ActionState>({ kind: "idle", message: "" });
+  const [entriesByCollection, setEntriesByCollection] = useState<Record<string, CollectionEntriesCache>>({});
   const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
-  const [routeState, setRouteState] = useState({ collectionId: "", entrySlug: "" });
+  const [routeState, setRouteState] = useState<DashboardRoute>({ view: "overview" });
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
+  const [deployHistory, setDeployHistory] = useState<DeploymentHistoryRun[]>([]);
+  const [deployHistoryState, setDeployHistoryState] = useState<ActionState>({ kind: "idle", message: "" });
   const [tokenInput, setTokenInput] = useState("");
   const imagesRef = useRef<SelectedImage[]>([]);
 
   const authToken = auth.kind === "signed-in" ? auth.token : "";
+  const routeCollectionId = "collectionId" in routeState ? routeState.collectionId : "";
   const slug = useMemo(() => normalizeContentSegment(draft.title), [draft.title]);
   const activeEditingEntry = editingEntry?.collectionId === selectedCollection.id ? editingEntry : null;
-  const isEditing = Boolean(activeEditingEntry);
+  const isEditing = routeState.view === "edit-entry";
+  const isNewEntryRoute = routeState.view === "new-entry";
+  const isEntryEditorRoute = routeState.view === "new-entry" || routeState.view === "edit-entry";
+  const isLoadingEditingEntry = routeState.view === "edit-entry" && activeEditingEntry?.slug !== routeState.entrySlug;
   const outputSlug = activeEditingEntry ? activeEditingEntry.slug : slug || "entry-title";
   const mdx = useMemo(() => buildMdx(selectedCollection, draft), [selectedCollection, draft]);
   const tokenUrl = useMemo(() => buildGitHubTokenUrl(), []);
+  const selectedCollectionEntriesCache = entriesByCollection[selectedCollection.id];
+  const entries = selectedCollectionEntriesCache?.entries ?? [];
+  const entriesState = selectedCollectionEntriesCache?.state ?? { kind: "idle", message: "" };
   const entryPath = activeEditingEntry
     ? activeEditingEntry.path
     : `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
@@ -208,8 +244,9 @@ export default function DashboardPage() {
     if (auth.kind !== "signed-in" || !authToken) {
       setCollections(defaultCollectionDefinitions);
       setCollectionsState({ kind: "idle", message: "" });
-      setEntries([]);
-      setEntriesState({ kind: "idle", message: "" });
+      setEntriesByCollection({});
+      setDeployHistory([]);
+      setDeployHistoryState({ kind: "idle", message: "" });
       setEditingEntry(null);
       return;
     }
@@ -244,10 +281,10 @@ export default function DashboardPage() {
   }, [auth.kind, authToken]);
 
   useEffect(() => {
-    if (routeState.collectionId && collections.some((collection) => collection.id === routeState.collectionId)) {
-      setSelectedCollectionId(routeState.collectionId);
+    if (routeCollectionId && collections.some((collection) => collection.id === routeCollectionId)) {
+      setSelectedCollectionId(routeCollectionId);
     }
-  }, [collections, routeState.collectionId]);
+  }, [collections, routeCollectionId]);
 
   useEffect(() => {
     if (!collections.some((collection) => collection.id === selectedCollectionId)) {
@@ -256,9 +293,14 @@ export default function DashboardPage() {
   }, [collections, selectedCollectionId]);
 
   useEffect(() => {
+    if (routeState.view === "edit-entry") {
+      return;
+    }
+
     setDraftLoaded(false);
 
-    const savedDraft = window.localStorage.getItem(draftStorageKey(selectedCollection.id));
+    const savedDraft =
+      routeState.view === "new-entry" ? window.localStorage.getItem(draftStorageKey(selectedCollection.id)) : "";
     const nextDraft = savedDraft ? parseStoredDraft(savedDraft, selectedCollection) : emptyEntryDraft(selectedCollection);
 
     setDraft(nextDraft);
@@ -267,15 +309,15 @@ export default function DashboardPage() {
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
     setDraftLoaded(true);
-  }, [selectedCollection]);
+  }, [routeState.view, selectedCollection]);
 
   useEffect(() => {
-    if (!draftLoaded || isEditing) {
+    if (!draftLoaded || !isNewEntryRoute) {
       return;
     }
 
     window.localStorage.setItem(draftStorageKey(selectedCollection.id), JSON.stringify(draft));
-  }, [draft, draftLoaded, isEditing, selectedCollection.id]);
+  }, [draft, draftLoaded, isNewEntryRoute, selectedCollection.id]);
 
   useEffect(() => {
     if (auth.kind !== "signed-in") {
@@ -283,20 +325,18 @@ export default function DashboardPage() {
     }
 
     let ignore = false;
-    setEntriesState({ kind: "working", message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...` });
+    setDeployHistoryState({ kind: "working", message: "Loading deploy history..." });
 
-    loadEntriesFromGitHub(selectedCollection, auth.token)
-      .then((nextEntries) => {
+    loadDeploymentHistory(auth.token)
+      .then((runs) => {
         if (ignore) {
           return;
         }
 
-        setEntries(nextEntries);
-        setEntriesState({
+        setDeployHistory(runs);
+        setDeployHistoryState({
           kind: "success",
-          message: nextEntries.length
-            ? `${nextEntries.length} ${nextEntries.length === 1 ? selectedCollection.label.toLowerCase() : selectedCollection.pluralLabel.toLowerCase()} loaded.`
-            : `No ${selectedCollection.pluralLabel.toLowerCase()} yet.`,
+          message: runs.length ? `${runs.length} deploy runs loaded.` : "No deploy runs found.",
         });
       })
       .catch((error) => {
@@ -304,20 +344,58 @@ export default function DashboardPage() {
           return;
         }
 
-        setEntries([]);
-        setEntriesState({
+        setDeployHistory([]);
+        setDeployHistoryState({
           kind: "error",
-          message: error instanceof Error ? error.message : "Could not load entries.",
+          message: error instanceof Error ? error.message : "Could not load deploy history.",
         });
       });
 
     return () => {
       ignore = true;
     };
-  }, [auth, selectedCollection]);
+  }, [auth]);
 
   useEffect(() => {
-    if (auth.kind !== "signed-in" || !routeState.entrySlug || selectedCollection.id !== routeState.collectionId) {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    let ignore = false;
+
+    collections.forEach((collection) => {
+      setCollectionEntriesState(collection.id, {
+        kind: "working",
+        message: `Loading ${collection.pluralLabel.toLowerCase()}...`,
+      });
+
+      loadEntriesFromGitHub(collection, auth.token)
+        .then((nextEntries) => {
+          if (ignore) {
+            return;
+          }
+
+          setCollectionEntries(collection, nextEntries);
+        })
+        .catch((error) => {
+          if (ignore) {
+            return;
+          }
+
+          setCollectionEntriesFailure(
+            collection.id,
+            error instanceof Error ? error.message : "Could not load entries.",
+          );
+        });
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth, collections]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in" || routeState.view !== "edit-entry" || selectedCollection.id !== routeState.collectionId) {
       return;
     }
 
@@ -363,7 +441,7 @@ export default function DashboardPage() {
     return () => {
       ignore = true;
     };
-  }, [auth, routeState.entrySlug, routeState.collectionId, selectedCollection, editingEntry]);
+  }, [auth, routeState, selectedCollection, editingEntry]);
 
   useEffect(() => {
     imagesRef.current = images;
@@ -451,34 +529,60 @@ export default function DashboardPage() {
   }
 
   function selectCollection(collectionId: string) {
-    setSelectedCollectionId(collectionId);
     setEditingEntry(null);
     setExistingImageNames(new Set());
-    updateDashboardUrl(collectionId);
+    navigateDashboard({ view: "collection", collectionId });
   }
 
-  function updateDashboardUrl(collectionId: string, entrySlug?: string) {
+  function navigateDashboard(route: DashboardRoute) {
     const url = new URL(window.location.href);
     url.searchParams.delete("type");
     url.searchParams.delete("entry");
-    url.hash = entrySlug
-      ? `/${encodeURIComponent(collectionId)}/${encodeURIComponent(entrySlug)}`
-      : `/${encodeURIComponent(collectionId)}`;
+    url.hash = dashboardRouteHash(route);
 
     if (url.toString() !== window.location.href) {
       window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    setRouteState({ collectionId, entrySlug: entrySlug ?? "" });
+    setRouteState(route);
   }
 
   function startNewEntry() {
     setEditingEntry(null);
     setExistingImageNames(new Set());
-    setDraft(emptyEntryDraft(selectedCollection));
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
-    updateDashboardUrl(selectedCollection.id);
+    navigateDashboard({ view: "new-entry", collectionId: selectedCollection.id });
+  }
+
+  function setCollectionEntriesState(collectionId: string, state: ActionState) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collectionId]: {
+        entries: current[collectionId]?.entries ?? [],
+        state,
+      },
+    }));
+  }
+
+  function setCollectionEntries(collection: CollectionDefinition, nextEntries: EntrySummary[]) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collection.id]: {
+        entries: nextEntries,
+        state: collectionEntriesSuccessState(collection, nextEntries),
+      },
+    }));
+  }
+
+  function setCollectionEntriesFailure(collectionId: string, message: string) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collectionId]: {
+        entries: [],
+        state: { kind: "error", message },
+      },
+    }));
   }
 
   async function refreshCollections() {
@@ -505,58 +609,54 @@ export default function DashboardPage() {
       return;
     }
 
-    setEntriesState({ kind: "working", message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...` });
+    setCollectionEntriesState(selectedCollection.id, {
+      kind: "working",
+      message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...`,
+    });
 
     try {
       const nextEntries = await loadEntriesFromGitHub(selectedCollection, auth.token);
-      setEntries(nextEntries);
-      setEntriesState({
-        kind: "success",
-        message: nextEntries.length
-          ? `${nextEntries.length} ${nextEntries.length === 1 ? selectedCollection.label.toLowerCase() : selectedCollection.pluralLabel.toLowerCase()} loaded.`
-          : `No ${selectedCollection.pluralLabel.toLowerCase()} yet.`,
-      });
+      setCollectionEntries(selectedCollection, nextEntries);
     } catch (error) {
-      setEntriesState({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not load entries.",
-      });
+      setCollectionEntriesFailure(
+        selectedCollection.id,
+        error instanceof Error ? error.message : "Could not load entries.",
+      );
     }
   }
 
-  async function loadEntryForEdit(entrySlug: string) {
+  async function refreshDeployHistory() {
     if (auth.kind !== "signed-in") {
       return;
     }
 
-    setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
+    setDeployHistoryState({ kind: "working", message: "Loading deploy history..." });
 
     try {
-      const entry = await loadEntryFromGitHub(selectedCollection, entrySlug, auth.token);
-      const remoteImageNames = await loadEntryImageNamesFromGitHub(selectedCollection.id, entry.slug, auth.token);
-
-      setDraft(entry.draft);
-      setDraftLoaded(true);
-      setEditingEntry({
-        collectionId: selectedCollection.id,
-        slug: entry.slug,
-        path: entry.path,
-        sha: entry.sha,
+      const runs = await loadDeploymentHistory(auth.token);
+      setDeployHistory(runs);
+      setDeployHistoryState({
+        kind: "success",
+        message: runs.length ? `${runs.length} deploy runs loaded.` : "No deploy runs found.",
       });
-      setExistingImageNames(remoteImageNames);
-      clearSelectedImages();
-      setActionState({ kind: "idle", message: "" });
-      updateDashboardUrl(selectedCollection.id, entry.slug);
     } catch (error) {
-      setActionState({
+      setDeployHistoryState({
         kind: "error",
-        message: error instanceof Error ? error.message : "Could not load entry.",
+        message: error instanceof Error ? error.message : "Could not load deploy history.",
       });
     }
   }
 
   async function publishEntry() {
     if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    if (isEditing && !activeEditingEntry) {
+      setActionState({
+        kind: "error",
+        message: "Wait for the entry to finish loading before saving.",
+      });
       return;
     }
 
@@ -620,7 +720,21 @@ export default function DashboardPage() {
         sortValue: getDraftSortValue(selectedCollection, draft),
       };
 
-      setEntries((current) => sortEntrySummaries([...current.filter((entry) => entry.slug !== targetSlug), nextEntry], selectedCollection));
+      setEntriesByCollection((current) => {
+        const currentEntries = current[selectedCollection.id]?.entries ?? [];
+        const nextEntries = sortEntrySummaries(
+          [...currentEntries.filter((entry) => entry.slug !== targetSlug), nextEntry],
+          selectedCollection,
+        );
+
+        return {
+          ...current,
+          [selectedCollection.id]: {
+            entries: nextEntries,
+            state: collectionEntriesSuccessState(selectedCollection, nextEntries),
+          },
+        };
+      });
       setEditingEntry(
         activeEditingEntry
           ? {
@@ -634,7 +748,7 @@ export default function DashboardPage() {
       setExistingImageNames((current) => new Set([...current, ...images.map((image) => image.safeName)]));
       if (!isEditing) {
         setDraft(emptyEntryDraft(selectedCollection));
-        updateDashboardUrl(selectedCollection.id);
+        navigateDashboard({ view: "collection", collectionId: selectedCollection.id });
       }
       clearSelectedImages();
       setActionState({
@@ -688,7 +802,9 @@ export default function DashboardPage() {
 
       setCollections((current) => orderCollectionDefinitions([...current, definition]));
       setSelectedCollectionId(definition.id);
+      setCollectionEntries(definition, []);
       setTypeDraft(emptyTypeDraft());
+      navigateDashboard({ view: "collection", collectionId: definition.id });
       setActionState({
         kind: "success",
         message: "Content type added to GitHub. Waiting for the site deploy now.",
@@ -783,6 +899,8 @@ export default function DashboardPage() {
     );
   }
 
+  const signedInAuth = auth;
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
       <header className="flex flex-col gap-4 border-b border-zinc-900 pb-6 lg:flex-row lg:items-end lg:justify-between">
@@ -791,34 +909,253 @@ export default function DashboardPage() {
             Dashboard
           </p>
           <h1 className="font-mono text-3xl font-normal text-zinc-50 md:text-4xl">
-            {isEditing ? "Edit" : "New"} {selectedCollection.label.toLowerCase()}
+            {dashboardPageTitle(routeState, selectedCollection)}
           </h1>
           <p className="mt-2 text-sm text-zinc-500">
             Signed in as{" "}
-            <Link href={auth.user.htmlUrl} target="_blank" className="text-[#c3d9f3] underline">
-              @{auth.user.login}
+            <Link href={signedInAuth.user.htmlUrl} target="_blank" className="text-[#c3d9f3] underline">
+              @{signedInAuth.user.login}
             </Link>
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button asChild variant="outline">
-            <a href={tokenUrl} target="_blank" rel="noreferrer">
-              <KeyRound />
-              Token
-              <ExternalLink />
-            </a>
-          </Button>
-          <Button type="button" variant="outline" onClick={startNewEntry}>
-            <Plus />
-            New entry
-          </Button>
-          <Button onClick={publishEntry} disabled={actionState.kind === "working"}>
-            <Send />
-            {isEditing ? "Save" : "Publish"}
-          </Button>
+          {routeState.view !== "overview" ? (
+            <Button asChild variant="outline">
+              <a href={dashboardRouteHref({ view: "overview" })}>Dashboard</a>
+            </Button>
+          ) : null}
+          {routeState.view !== "new-type" ? (
+            <Button asChild variant="outline">
+              <a href={dashboardRouteHref({ view: "new-type" })}>
+                <ListPlus />
+                New type
+              </a>
+            </Button>
+          ) : null}
+          {routeState.view === "collection" ? (
+            <Button type="button" onClick={startNewEntry}>
+              <Plus />
+              New {selectedCollection.label.toLowerCase()}
+            </Button>
+          ) : null}
+          {isEntryEditorRoute ? (
+            <Button onClick={publishEntry} disabled={actionState.kind === "working" || isLoadingEditingEntry}>
+              <Send />
+              {isEditing ? "Save" : "Publish"}
+            </Button>
+          ) : null}
         </div>
       </header>
 
+      {renderCurrentView()}
+    </main>
+  );
+
+  function renderCurrentView() {
+    if (routeState.view === "new-type") {
+      return renderNewTypeView();
+    }
+
+    if (routeState.view === "collection") {
+      return renderCollectionIndex();
+    }
+
+    if (routeState.view === "new-entry" || routeState.view === "edit-entry") {
+      return renderEntryEditor();
+    }
+
+    return renderOverview();
+  }
+
+  function renderOverview() {
+    return (
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          {(publishingActionState.message || deploymentState.message) ? (
+            <DashboardPublishingPanel actionState={publishingActionState} deploymentState={deploymentState} />
+          ) : null}
+
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-mono text-lg font-normal text-zinc-50">Content</h2>
+                <p className="mt-1 text-sm text-zinc-500">{collectionsState.message || "Ready"}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={refreshCollections}>
+                  <RefreshCw />
+                  Refresh
+                </Button>
+                <Button asChild>
+                  <a href={dashboardRouteHref({ view: "new-type" })}>
+                    <ListPlus />
+                    New type
+                  </a>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {collections.map((collection) => {
+                const cache = entriesByCollection[collection.id];
+                const countLabel = cache
+                  ? `${cache.entries.length} ${cache.entries.length === 1 ? collection.label.toLowerCase() : collection.pluralLabel.toLowerCase()}`
+                  : "Entries not loaded";
+
+                return (
+                  <a
+                    key={collection.id}
+                    href={dashboardRouteHref({ view: "collection", collectionId: collection.id })}
+                    className="group flex min-h-36 flex-col justify-between border border-zinc-900 bg-black p-4 transition-colors hover:border-zinc-700"
+                  >
+                    <span>
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="font-mono text-lg text-zinc-50">{collection.pluralLabel}</span>
+                        <FileText className="mt-1 size-4 shrink-0 text-zinc-500 transition-colors group-hover:text-zinc-300" />
+                      </span>
+                      <span className="mt-2 line-clamp-2 block text-sm leading-6 text-zinc-500">
+                        {collection.description || `Manage ${collection.pluralLabel.toLowerCase()}.`}
+                      </span>
+                    </span>
+                    <span className="mt-4 flex items-center justify-between gap-3">
+                      <span className="font-mono text-xs text-zinc-500">/{collection.route}</span>
+                      <span className="text-xs text-zinc-400">{cache?.state.message || countLabel}</span>
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+
+          <DeployHistoryPanel
+            runs={deployHistory}
+            state={deployHistoryState}
+            onRefresh={refreshDeployHistory}
+          />
+        </div>
+
+        <aside className="space-y-6">
+          {renderSessionPanel()}
+          {renderRepositoryPanel()}
+        </aside>
+      </section>
+    );
+  }
+
+  function renderCollectionIndex() {
+    return (
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-500">Collection</p>
+                <h2 className="mt-2 font-mono text-2xl font-normal text-zinc-50">{selectedCollection.pluralLabel}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
+                  {selectedCollection.description || `Manage ${selectedCollection.pluralLabel.toLowerCase()}.`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={refreshEntries}>
+                  <RefreshCw />
+                  Refresh
+                </Button>
+                <Button type="button" onClick={startNewEntry}>
+                  <Plus />
+                  New {selectedCollection.label.toLowerCase()}
+                </Button>
+              </div>
+            </div>
+            <dl className="mt-5 grid gap-3 border-t border-zinc-900 pt-4 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Entries</dt>
+                <dd className="mt-1 text-zinc-100">{entries.length}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Public route</dt>
+                <dd className="mt-1 font-mono text-zinc-100">/{selectedCollection.route}</dd>
+              </div>
+              <div>
+                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Status</dt>
+                <dd className="mt-1 text-zinc-100">{entriesState.message || "Ready"}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="border border-zinc-900 bg-black p-4 md:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="font-mono text-lg font-normal text-zinc-50">Entries</h2>
+              <p className="text-xs text-zinc-500">{entriesState.message || "Ready"}</p>
+            </div>
+
+            {entries.length > 0 ? (
+              <div className="divide-y divide-zinc-900 border border-zinc-900">
+                {entries.map((entry) => (
+                  <a
+                    key={entry.slug}
+                    href={dashboardRouteHref({
+                      view: "edit-entry",
+                      collectionId: selectedCollection.id,
+                      entrySlug: entry.slug,
+                    })}
+                    className="grid gap-3 p-4 transition-colors hover:bg-zinc-950 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-zinc-50">{entry.title}</span>
+                      <span className="mt-1 line-clamp-2 block text-sm leading-6 text-zinc-500">
+                        {entry.description}
+                      </span>
+                      <span className="mt-2 block truncate font-mono text-xs text-zinc-600">{entry.slug}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">
+                      <Pencil className="size-4" />
+                      Edit
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-dashed border-zinc-800 p-5">
+                <p className="text-sm text-zinc-500">No entries found.</p>
+                <Button type="button" className="mt-4" onClick={startNewEntry}>
+                  <Plus />
+                  New {selectedCollection.label.toLowerCase()}
+                </Button>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside className="space-y-6">
+          {renderCollectionsPanel()}
+          {renderSessionPanel()}
+        </aside>
+      </section>
+    );
+  }
+
+  function renderEntryEditor() {
+    if (isLoadingEditingEntry) {
+      return (
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-6">
+            <section className="border border-zinc-900 bg-black p-4 md:p-5">
+              <h2 className="font-mono text-lg font-normal text-zinc-50">Loading entry</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">
+                {actionState.message || `Loading ${selectedCollection.label.toLowerCase()} from GitHub...`}
+              </p>
+            </section>
+            <DashboardActionStatusPanel actionState={actionState} />
+          </div>
+          <aside className="space-y-6">
+            {renderCollectionsPanel()}
+            {renderSessionPanel()}
+          </aside>
+        </section>
+      );
+    }
+
+    return (
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <section className="border border-zinc-900 bg-black p-4 md:p-5">
@@ -891,7 +1228,45 @@ export default function DashboardPage() {
               </div>
             </section>
           ) : null}
+        </div>
 
+        <aside className="space-y-6">
+          <section className="border border-zinc-900 bg-black p-4">
+            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Entry</h2>
+            <div className="grid gap-2">
+              <Button asChild variant="outline" className="w-full">
+                <a href={dashboardRouteHref({ view: "collection", collectionId: selectedCollection.id })}>
+                  {selectedCollection.pluralLabel}
+                </a>
+              </Button>
+              <Button type="button" className="w-full" onClick={publishEntry} disabled={actionState.kind === "working" || isLoadingEditingEntry}>
+                <Send />
+                {isEditing ? "Save" : "Publish"}
+              </Button>
+            </div>
+          </section>
+
+          {publishingActionState.message || deploymentState.message ? null : (
+            <DashboardActionStatusPanel actionState={actionState} />
+          )}
+
+          {renderOutputPanel()}
+
+          <section className="border border-zinc-900 bg-black p-4">
+            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">MDX</h2>
+            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap border border-zinc-900 bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-200">
+              {mdx}
+            </pre>
+          </section>
+        </aside>
+      </section>
+    );
+  }
+
+  function renderNewTypeView() {
+    return (
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
           <section className="border border-zinc-900 bg-black p-4 md:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="font-mono text-lg font-normal text-zinc-50">New content type</h2>
@@ -957,185 +1332,163 @@ export default function DashboardPage() {
               </Button>
             </div>
           </section>
-        </div>
-
-        <aside className="space-y-6">
-          <section className="border border-zinc-900 bg-black p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-mono text-lg font-normal text-zinc-50">Content types</h2>
-                <p className="mt-1 text-xs text-zinc-500">
-                  {collectionsState.message || "Ready"}
-                </p>
-              </div>
-              <Button type="button" variant="ghost" size="icon" onClick={refreshCollections}>
-                <RefreshCw />
-                <span className="sr-only">Refresh types</span>
-              </Button>
-            </div>
-            <div className="grid gap-2">
-              {collections.map((collection) => (
-                <button
-                  key={collection.id}
-                  type="button"
-                  onClick={() => selectCollection(collection.id)}
-                  className={`w-full border px-3 py-2 text-left transition-colors ${
-                    selectedCollection.id === collection.id
-                      ? "border-zinc-100 bg-zinc-950"
-                      : "border-zinc-900 hover:border-zinc-700"
-                  }`}
-                >
-                  <span className="flex items-start gap-2">
-                    <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500" />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-zinc-50">
-                        {collection.pluralLabel}
-                      </span>
-                      <span className="mt-1 block truncate font-mono text-xs text-zinc-500">
-                        /{collection.route}
-                      </span>
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="border border-zinc-900 bg-black p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-mono text-lg font-normal text-zinc-50">Entries</h2>
-                <p className="mt-1 text-xs text-zinc-500">{entriesState.message || "Ready"}</p>
-              </div>
-              <Button type="button" variant="ghost" size="icon" onClick={refreshEntries}>
-                <RefreshCw />
-                <span className="sr-only">Refresh entries</span>
-              </Button>
-            </div>
-            <div className="grid gap-2">
-              <Button type="button" variant={isEditing ? "outline" : "secondary"} className="justify-start" onClick={startNewEntry}>
-                <Plus />
-                New {selectedCollection.label.toLowerCase()}
-              </Button>
-              {entries.length > 0 ? (
-                <div className="max-h-[360px] space-y-2 overflow-auto pr-1">
-                  {entries.map((entry) => (
-                    <button
-                      key={entry.slug}
-                      type="button"
-                      onClick={() => loadEntryForEdit(entry.slug)}
-                      className={`w-full border px-3 py-2 text-left transition-colors ${
-                        activeEditingEntry?.slug === entry.slug
-                          ? "border-zinc-100 bg-zinc-950"
-                          : "border-zinc-900 hover:border-zinc-700"
-                      }`}
-                    >
-                      <span className="flex items-start gap-2">
-                        <Pencil className="mt-0.5 size-4 shrink-0 text-zinc-500" />
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-zinc-50">
-                            {entry.title}
-                          </span>
-                          <span className="mt-1 block truncate font-mono text-xs text-zinc-500">
-                            {entry.slug}
-                          </span>
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="border border-dashed border-zinc-800 p-3 text-sm text-zinc-500">
-                  No entries found.
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className="border border-zinc-900 bg-black p-4">
-            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Session</h2>
-            <dl className="mb-4 space-y-3 text-sm">
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">GitHub</dt>
-                <dd className="break-all font-mono text-zinc-100">@{auth.user.login}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Access</dt>
-                <dd className="text-zinc-100">Write enabled</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Types</dt>
-                <dd className="text-zinc-100">{collectionsState.message || "Ready"}</dd>
-              </div>
-            </dl>
-            <div className="grid gap-2">
-              <Button type="button" variant="outline" className="w-full" onClick={refreshCollections}>
-                <RefreshCw />
-                Refresh types
-              </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={signOut}>
-                <LogOut />
-                Sign out
-              </Button>
-            </div>
-          </section>
-
-          <section className="border border-zinc-900 bg-black p-4">
-            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Output</h2>
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Repository</dt>
-                <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
-                <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Type</dt>
-                <dd className="break-all font-mono text-zinc-100">{selectedCollection.id}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Mode</dt>
-                <dd className="break-all font-mono text-zinc-100">
-                  {isEditing ? "edit" : "new"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Route</dt>
-                <dd className="break-all font-mono text-zinc-100">/{selectedCollection.route}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Slug</dt>
-                <dd className="break-all font-mono text-zinc-100">{outputSlug}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Path</dt>
-                <dd className="break-all font-mono text-zinc-100">{entryPath}</dd>
-              </div>
-              {selectedTags.length > 0 ? (
-                <div>
-                  <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Tags</dt>
-                  <dd className="text-zinc-100">{selectedTags.join(", ")}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </section>
-
-          <section className="border border-zinc-900 bg-black p-4">
-            <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">MDX</h2>
-            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap border border-zinc-900 bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-200">
-              {mdx}
-            </pre>
-          </section>
 
           {publishingActionState.message || deploymentState.message ? null : (
             <DashboardActionStatusPanel actionState={actionState} />
           )}
+        </div>
+
+        <aside className="space-y-6">
+          {renderCollectionsPanel()}
+          {renderSessionPanel()}
         </aside>
       </section>
-    </main>
-  );
+    );
+  }
+
+  function renderCollectionsPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-mono text-lg font-normal text-zinc-50">Content types</h2>
+            <p className="mt-1 text-xs text-zinc-500">{collectionsState.message || "Ready"}</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={refreshCollections}>
+            <RefreshCw />
+            <span className="sr-only">Refresh types</span>
+          </Button>
+        </div>
+        <div className="grid gap-2">
+          {collections.map((collection) => (
+            <button
+              key={collection.id}
+              type="button"
+              onClick={() => selectCollection(collection.id)}
+              className={`w-full border px-3 py-2 text-left transition-colors ${
+                selectedCollection.id === collection.id && routeState.view !== "overview"
+                  ? "border-zinc-100 bg-zinc-950"
+                  : "border-zinc-900 hover:border-zinc-700"
+              }`}
+            >
+              <span className="flex items-start gap-2">
+                <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-zinc-50">{collection.pluralLabel}</span>
+                  <span className="mt-1 block truncate font-mono text-xs text-zinc-500">/{collection.route}</span>
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderSessionPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Session</h2>
+        <dl className="mb-4 space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">GitHub</dt>
+            <dd className="break-all font-mono text-zinc-100">@{signedInAuth.user.login}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Access</dt>
+            <dd className="text-zinc-100">Write enabled</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Types</dt>
+            <dd className="text-zinc-100">{collectionsState.message || "Ready"}</dd>
+          </div>
+        </dl>
+        <div className="grid gap-2">
+          <Button asChild variant="outline" className="w-full">
+            <a href={tokenUrl} target="_blank" rel="noreferrer">
+              <KeyRound />
+              Token
+              <ExternalLink />
+            </a>
+          </Button>
+          <Button type="button" variant="outline" className="w-full" onClick={refreshCollections}>
+            <RefreshCw />
+            Refresh types
+          </Button>
+          <Button type="button" variant="outline" className="w-full" onClick={signOut}>
+            <LogOut />
+            Sign out
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  function renderRepositoryPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Repository</h2>
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Name</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Workflow</dt>
+            <dd className="text-zinc-100">{siteConfig.writer.deployment.workflowName}</dd>
+          </div>
+        </dl>
+      </section>
+    );
+  }
+
+  function renderOutputPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Output</h2>
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Repository</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Type</dt>
+            <dd className="break-all font-mono text-zinc-100">{selectedCollection.id}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Mode</dt>
+            <dd className="break-all font-mono text-zinc-100">{isEditing ? "edit" : "new"}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Route</dt>
+            <dd className="break-all font-mono text-zinc-100">/{selectedCollection.route}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Slug</dt>
+            <dd className="break-all font-mono text-zinc-100">{outputSlug}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Path</dt>
+            <dd className="break-all font-mono text-zinc-100">{entryPath}</dd>
+          </div>
+          {selectedTags.length > 0 ? (
+            <div>
+              <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Tags</dt>
+              <dd className="text-zinc-100">{selectedTags.join(", ")}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </section>
+    );
+  }
 
   function addTypeField() {
     setTypeDraft((current) => ({
@@ -1277,6 +1630,137 @@ function DashboardActionStatusPanel({ actionState }: { actionState: ActionState 
   );
 }
 
+function DashboardPublishingPanel({
+  actionState,
+  deploymentState,
+}: {
+  actionState: PublishingActionState;
+  deploymentState: DeploymentState;
+}) {
+  return (
+    <section className="border border-zinc-900 bg-black p-4 md:p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <Activity className="size-4 text-zinc-500" />
+        <h2 className="font-mono text-lg font-normal text-zinc-50">Publishing</h2>
+      </div>
+      <div className="space-y-3 text-sm">
+        {actionState.message ? (
+          <StatusLine kind={actionState.kind} message={actionState.message} href={actionState.href} hrefLabel="View commit" />
+        ) : null}
+        {deploymentState.message ? (
+          <StatusLine
+            kind={deploymentState.kind}
+            message={deploymentState.message}
+            href={deploymentState.actionsUrl}
+            hrefLabel="View deploy"
+          />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function DeployHistoryPanel({
+  runs,
+  state,
+  onRefresh,
+}: {
+  runs: DeploymentHistoryRun[];
+  state: ActionState;
+  onRefresh: () => void;
+}) {
+  return (
+    <section className="border border-zinc-900 bg-black p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-mono text-lg font-normal text-zinc-50">Deploy history</h2>
+          <p className="mt-1 text-xs text-zinc-500">{state.message || "Ready"}</p>
+        </div>
+        <Button type="button" variant="ghost" size="icon" onClick={onRefresh}>
+          <RefreshCw />
+          <span className="sr-only">Refresh deploy history</span>
+        </Button>
+      </div>
+
+      {runs.length > 0 ? (
+        <div className="divide-y divide-zinc-900 border border-zinc-900">
+          {runs.map((run) => (
+            <a
+              key={run.id}
+              href={run.htmlUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="grid gap-3 p-4 transition-colors hover:bg-zinc-950 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center"
+            >
+              <DeploymentRunIcon status={run.status} conclusion={run.conclusion} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-zinc-50">{run.name}</span>
+                <span className="mt-1 block truncate font-mono text-xs text-zinc-500">
+                  {deploymentRunLabel(run)} · {formatDeployDate(run.updatedAt || run.createdAt)}
+                </span>
+              </span>
+              <ExternalLink className="size-4 text-zinc-500" />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="border border-dashed border-zinc-800 p-3 text-sm text-zinc-500">No deploy runs found.</p>
+      )}
+    </section>
+  );
+}
+
+function StatusLine({
+  kind,
+  message,
+  href,
+  hrefLabel,
+}: {
+  kind: ActionState["kind"] | DeploymentState["kind"];
+  message: string;
+  href?: string;
+  hrefLabel: string;
+}) {
+  return (
+    <div className="border border-zinc-900 p-3">
+      <div className="flex items-start gap-2">
+        <StatusIcon kind={kind} />
+        <p className="min-w-0 flex-1 leading-6 text-zinc-200">{message}</p>
+      </div>
+      {href ? (
+        <Link href={href} target="_blank" className="mt-2 inline-flex items-center gap-1 text-xs text-[#c3d9f3] underline">
+          {hrefLabel}
+          <ExternalLink className="size-3" />
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function StatusIcon({ kind }: { kind: ActionState["kind"] | DeploymentState["kind"] }) {
+  if (kind === "success") {
+    return <CheckCircle2 className="mt-1 size-4 shrink-0 text-emerald-400" />;
+  }
+
+  if (kind === "error") {
+    return <AlertCircle className="mt-1 size-4 shrink-0 text-red-400" />;
+  }
+
+  return <Clock3 className="mt-1 size-4 shrink-0 text-zinc-500" />;
+}
+
+function DeploymentRunIcon({ status, conclusion }: { status: string; conclusion: string | null }) {
+  if (status === "completed" && conclusion === "success") {
+    return <CheckCircle2 className="size-4 text-emerald-400" />;
+  }
+
+  if (status === "completed" && conclusion !== "success") {
+    return <AlertCircle className="size-4 text-red-400" />;
+  }
+
+  return <Clock3 className="size-4 text-zinc-500" />;
+}
+
 function NewFieldEditor({
   field,
   onChange,
@@ -1392,25 +1876,108 @@ function parseStoredDraft(rawDraft: string, collection: CollectionDefinition) {
   }
 }
 
-function readDashboardRouteState() {
+function readDashboardRouteState(): DashboardRoute {
   const hashPath = window.location.hash.replace(/^#\/?/, "");
   const hashSegments = hashPath
     .split("/")
     .map((segment) => decodeURIComponent(segment).trim())
     .filter(Boolean);
 
+  if (hashSegments[0] === "collections") {
+    const collectionId = normalizeContentSegment(hashSegments[1] ?? "");
+
+    if (!collectionId) {
+      return { view: "overview" };
+    }
+
+    if (hashSegments[2] === "new") {
+      return { view: "new-entry", collectionId };
+    }
+
+    if (hashSegments[2] === "entries") {
+      const entrySlug = normalizeContentSegment(hashSegments[3] ?? "");
+      return entrySlug ? { view: "edit-entry", collectionId, entrySlug } : { view: "collection", collectionId };
+    }
+
+    return { view: "collection", collectionId };
+  }
+
+  if (hashSegments[0] === "types" && hashSegments[1] === "new") {
+    return { view: "new-type" };
+  }
+
   if (hashSegments[0]) {
-    return {
-      collectionId: normalizeContentSegment(hashSegments[0]),
-      entrySlug: normalizeContentSegment(hashSegments[1] ?? ""),
-    };
+    const collectionId = normalizeContentSegment(hashSegments[0]);
+    const entrySlug = normalizeContentSegment(hashSegments[1] ?? "");
+
+    return entrySlug ? { view: "edit-entry", collectionId, entrySlug } : { view: "collection", collectionId };
   }
 
   const params = new URLSearchParams(window.location.search);
+  const collectionId = normalizeContentSegment(params.get("type") ?? "");
+  const entrySlug = normalizeContentSegment(params.get("entry") ?? "");
 
+  if (collectionId && entrySlug) {
+    return { view: "edit-entry", collectionId, entrySlug };
+  }
+
+  if (collectionId) {
+    return { view: "collection", collectionId };
+  }
+
+  return { view: "overview" };
+}
+
+function dashboardRouteHash(route: DashboardRoute) {
+  if (route.view === "overview") {
+    return "/";
+  }
+
+  if (route.view === "new-type") {
+    return "/types/new";
+  }
+
+  if (route.view === "collection") {
+    return `/collections/${encodeURIComponent(route.collectionId)}`;
+  }
+
+  if (route.view === "new-entry") {
+    return `/collections/${encodeURIComponent(route.collectionId)}/new`;
+  }
+
+  return `/collections/${encodeURIComponent(route.collectionId)}/entries/${encodeURIComponent(route.entrySlug)}`;
+}
+
+function dashboardRouteHref(route: DashboardRoute) {
+  return `#${dashboardRouteHash(route)}`;
+}
+
+function dashboardPageTitle(route: DashboardRoute, collection: CollectionDefinition) {
+  if (route.view === "new-type") {
+    return "New content type";
+  }
+
+  if (route.view === "collection") {
+    return collection.pluralLabel;
+  }
+
+  if (route.view === "new-entry") {
+    return `New ${collection.label.toLowerCase()}`;
+  }
+
+  if (route.view === "edit-entry") {
+    return `Edit ${collection.label.toLowerCase()}`;
+  }
+
+  return "Dashboard";
+}
+
+function collectionEntriesSuccessState(collection: CollectionDefinition, entries: EntrySummary[]): ActionState {
   return {
-    collectionId: normalizeContentSegment(params.get("type") ?? ""),
-    entrySlug: normalizeContentSegment(params.get("entry") ?? ""),
+    kind: "success",
+    message: entries.length
+      ? `${entries.length} ${entries.length === 1 ? collection.label.toLowerCase() : collection.pluralLabel.toLowerCase()} loaded.`
+      : `No ${collection.pluralLabel.toLowerCase()} yet.`,
   };
 }
 
@@ -1885,6 +2452,57 @@ async function loadEntryImageNamesFromGitHub(collectionId: string, slug: string,
   return new Set(items.filter((item) => item.type === "file" && item.name).map((item) => item.name as string));
 }
 
+async function loadDeploymentHistory(token: string) {
+  const url = new URL(`https://api.github.com/repos/${writerRepositoryFullName}/actions/runs`);
+  url.searchParams.set("branch", writerRepository.branch);
+  url.searchParams.set("event", "push");
+  url.searchParams.set("exclude_pull_requests", "true");
+  url.searchParams.set("per_page", "8");
+
+  const response = await fetch(url.toString(), {
+    headers: githubHeaders(token),
+  });
+
+  if (!response.ok) {
+    throw new Error(await githubErrorMessage(response));
+  }
+
+  const data = (await response.json()) as {
+    workflow_runs?: Array<{
+      id: number;
+      name?: string;
+      html_url?: string;
+      status?: string;
+      conclusion?: string | null;
+      created_at?: string;
+      updated_at?: string;
+      head_sha?: string;
+      actor?: {
+        login?: string;
+      };
+    }>;
+  };
+
+  return (data.workflow_runs ?? [])
+    .filter((run) => !siteConfig.writer.deployment.workflowName || run.name === siteConfig.writer.deployment.workflowName)
+    .map((run): DeploymentHistoryRun => {
+      const createdAt = run.created_at ?? "";
+      const updatedAt = run.updated_at ?? createdAt;
+
+      return {
+        id: run.id,
+        name: run.name || siteConfig.writer.deployment.workflowName || "Deploy",
+        status: run.status || "unknown",
+        conclusion: run.conclusion ?? null,
+        createdAt,
+        updatedAt,
+        htmlUrl: run.html_url || `https://github.com/${writerRepositoryFullName}/actions`,
+        headSha: run.head_sha || "",
+        actorLogin: run.actor?.login,
+      };
+    });
+}
+
 async function ensurePathIsNew(path: string, token: string) {
   const response = await fetch(
     `https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}?ref=${writerRepository.branch}`,
@@ -1952,6 +2570,31 @@ function joinSiteUrl(...segments: string[]) {
     .join("/");
 
   return path ? `${baseUrl}/${path}` : baseUrl;
+}
+
+function deploymentRunLabel(run: DeploymentHistoryRun) {
+  if (run.status === "completed") {
+    return run.conclusion ? run.conclusion.replaceAll("_", " ") : "completed";
+  }
+
+  return run.status.replaceAll("_", " ");
+}
+
+function formatDeployDate(value: string) {
+  if (!value) {
+    return "Date unavailable";
+  }
+
+  try {
+    return new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
 }
 
 function encodeGitHubPath(path: string) {
