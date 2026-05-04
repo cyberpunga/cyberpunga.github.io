@@ -25,6 +25,7 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - Site-wide config and `/dashboard` publishing config live in `lib/site-config.ts`.
 - The repo-native static dashboard lives at `app/dashboard/page.tsx` and is served at `/dashboard`.
 - The dashboard body editor lives in `components/dashboard/mdx-editor.tsx`; it is a client-only, text-based Markdown editor with CodeMirror syntax highlighting, toolbar shortcuts, image drag/drop, and a safe Markdown preview. Publishing still writes the generated MDX source from dashboard state.
+- Dashboard leaf panels and field editors live in `components/dashboard/dashboard-panels.tsx`; dashboard draft, route, MDX, GitHub API, and media helpers live in `lib/dashboard-utils.ts`.
 - Layout-level publishing/deploy feedback lives in `lib/publishing-status-context.tsx` and `components/publishing-status-float.tsx`; dashboard publish flows call the shared provider so GitHub Actions status remains visible across route changes.
 - `DESIGN.md` documents the dark cyberpunga visual system: black canvas, hairline borders, Noto Sans/Noto Sans Mono, sparse chrome, editorial media, and dashboard usability constraints.
 - Repo-local Codex skills live in `.agents/skills/`.

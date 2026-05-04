@@ -72,6 +72,8 @@ app/
     posts-list.tsx      Filtro cliente por tag para artículos
 components/             Componentes compartidos
   dashboard/
+    dashboard-panels.tsx
+                        Paneles, estados y campos reutilizados por el dashboard
     mdx-editor.tsx      Editor Markdown textual del dashboard, con preview e imágenes
 content/
   posts/
@@ -86,6 +88,7 @@ lib/
   content-schema.ts     Tipos y validación liviana de colecciones
   default-collections.ts
                         Definiciones de colecciones incluidas para el dashboard cliente
+  dashboard-utils.ts    Helpers de borradores, rutas, MDX, GitHub API e imágenes del dashboard
   posts.ts              Carga, ordenamiento y metadata de posts
   site-config.ts        Configuración del sitio y del publicador
 .agents/
