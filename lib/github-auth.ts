@@ -77,10 +77,6 @@ export async function validateGitHubToken(token: string): Promise<GitHubAuthUser
   });
 
   if (!userResponse.ok) {
-    if (userResponse.status === 401) {
-      throw new Error(await githubInvalidTokenErrorMessage(userResponse));
-    }
-
     throw new Error(await githubErrorMessage(userResponse));
   }
 
@@ -155,10 +151,6 @@ export async function ensureGitHubUserContentEntry(token: string, user: GitHubAu
   }
 
   if (existingResponse.status !== 404) {
-    if (existingResponse.status === 403) {
-      throw new Error(await githubContentsWriteErrorMessage(existingResponse));
-    }
-
     throw new Error(await githubErrorMessage(existingResponse));
   }
 
@@ -181,10 +173,6 @@ export async function ensureGitHubUserContentEntry(token: string, user: GitHubAu
       if (raceResponse.ok) {
         return { kind: "exists" as const, path };
       }
-    }
-
-    if (createResponse.status === 403) {
-      throw new Error(await githubContentsWriteErrorMessage(createResponse));
     }
 
     throw new Error(await githubErrorMessage(createResponse));
@@ -210,83 +198,6 @@ export async function githubErrorMessage(response: Response) {
   } catch {
     return `GitHub request failed: ${response.status}`;
   }
-}
-
-async function githubContentsWriteErrorMessage(response: Response) {
-  const message = await githubErrorMessage(response);
-
-  const guidance = buildContentsWriteGuidance(response, message);
-
-  return guidance ? `${message}. ${guidance}` : message;
-}
-
-async function githubInvalidTokenErrorMessage(response: Response) {
-  const message = await githubErrorMessage(response);
-
-  return `${message}. Paste a new complete fine-grained GitHub token. This token is missing, expired, revoked, or copied incorrectly.`;
-}
-
-function buildContentsWriteGuidance(response: Response, message: string) {
-  const hints: string[] = [];
-  const ssoHint = extractSsoAuthorizationHint(response.headers.get("x-github-sso"));
-  const permissionHint = extractPermissionHint(message);
-
-  if (ssoHint) {
-    hints.push(ssoHint);
-  }
-
-  if (permissionHint) {
-    hints.push(permissionHint);
-  }
-
-  if (!hints.length) {
-    hints.push(defaultContentsWriteHint());
-  } else if (!hints.some((hint) => hint.toLowerCase().includes("contents"))) {
-    hints.push(`Ensure the token grants Contents: read and write access to ${writerRepositoryFullName}.`);
-  }
-
-  return hints.join(" ").trim();
-}
-
-function extractSsoAuthorizationHint(headerValue: string | null) {
-  if (!headerValue) {
-    return "";
-  }
-
-  const lowerHeader = headerValue.toLowerCase();
-  if (!lowerHeader.includes("required")) {
-    return "";
-  }
-
-  const urlMatch = headerValue.match(/url=([^;,\s]+)/i);
-  const organizationsMatch = headerValue.match(/organizations=([^;,\s]+)/i);
-  const organizationSlug = organizationsMatch?.[1]?.split(",")[0] ?? writerRepository.owner;
-
-  if (urlMatch) {
-    return `Authorize this token for the ${organizationSlug} organization at ${urlMatch[1]}.`;
-  }
-
-  return `Authorize this token for the ${organizationSlug} organization from your GitHub SSO settings, then try again.`;
-}
-
-function extractPermissionHint(message: string) {
-  if (/resource not accessible by integration/i.test(message)) {
-    return `Edit the token to allow Contents: read and write access to ${writerRepositoryFullName}, then try again.`;
-  }
-
-  if (/resource not accessible by personal access token/i.test(message)) {
-    return `This personal access token currently has read-only access. Edit the token to give Contents: read and write access to ${writerRepositoryFullName}, then paste the updated token.`;
-  }
-
-  if (/branch protection/i.test(message) || /protected branch/i.test(message)) {
-    return `Ask a repository admin to grant you bypass access for the protected ${writerRepository.branch} branch or publish through an approved workflow.`;
-  }
-
-  return "";
-}
-
-function defaultContentsWriteHint() {
-  return `Create a fine-grained GitHub token for ${writerRepositoryFullName} with Repository access set to ${writerRepository.name}, Repository permissions > Contents set to Read and write, Repository permissions > Actions set to Read-only, and any required organization approval completed.`;
 }
 
 function buildGitHubUserMdx(user: GitHubAuthUser) {

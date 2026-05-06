@@ -15,39 +15,49 @@ export default async function Home() {
   const recentPosts = blogPosts.slice(1, 4);
 
   return (
-    <div className="min-h-screen bg-black">
-      <main className="container relative z-10 mx-auto px-4 py-12">
+    <div className="min-h-screen bg-white dark:bg-zinc-950">
+      <main className="container mx-auto px-4 py-12 z-10 relative">
+        {/* Hero Section */}
+        {/* <section className="mb-16 border-b border-zinc-200 dark:border-zinc-800 pb-16">
+          <h1 className="mb-6 text-zinc-900 dark:text-zinc-50">{siteConfig.name}</h1>
+          <p className={cn("text-xl text-muted-foreground", "max-w-3xl mb-8 text-zinc-700 dark:text-zinc-300")}>
+            {siteConfig.description}
+          </p>
+          <Link
+            href="/posts"
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500"
+          >
+            Explorar Artículos
+          </Link>
+        </section> */}
+
         {/* Featured Post */}
-        <section className="flex min-h-[80vh] flex-col justify-end border-b border-zinc-900 py-16">
-          <h2 className="mb-8 font-mono text-xs font-normal uppercase tracking-[0.22em] text-zinc-500">
-            Artículo destacado
-          </h2>
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
-            <div className="space-y-5 lg:col-span-4">
+        <section className="min-h-[80vh] py-16 justify-end flex flex-col">
+          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículo Destacado</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-3 space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
-                  <time className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                  <time className="text-sm text-zinc-500 dark:text-zinc-400">
                     {formatDate(featuredPost.frontmatter.date)}
                   </time>
-                  <span className="text-zinc-700">/</span>
-                  <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                    {featuredPost.frontmatter.tags[0]}
-                  </span>
+                  <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">{featuredPost.frontmatter.tags[0]}</span>
                 </div>
-                <h3 className="max-w-5xl font-mono text-4xl font-normal leading-tight text-zinc-50 md:text-6xl">
+                <h3 className="text-zinc-900 dark:text-zinc-50 text-4xl font-bold">
                   <Link href={`/posts/${featuredPost.slug}`}>{featuredPost.frontmatter.title}</Link>
                 </h3>
               </div>
-              <p className="max-w-3xl text-base leading-7 text-zinc-400">{featuredPost.frontmatter.description}</p>
+              <p className="text-zinc-700 dark:text-zinc-300">{featuredPost.frontmatter.description}</p>
               <div>
                 <Link
                   href={`/posts/${featuredPost.slug}`}
-                  className="inline-flex min-h-11 items-center border border-zinc-700 px-5 font-mono text-xs uppercase tracking-[0.18em] text-zinc-100 transition-colors hover:border-zinc-100"
+                  className="text-zinc-900 dark:text-zinc-100 font-medium hover:underline inline-flex items-center"
                 >
                   Leer artículo completo
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="ml-2 h-4 w-4"
+                    className="h-4 w-4 ml-1"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -57,15 +67,32 @@ export default async function Home() {
                 </Link>
               </div>
             </div>
+            {/* <div className="lg:col-span-2 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-6">
+              <h4 className="font-mono font-semibold mb-3 text-zinc-900 dark:text-zinc-50">Temas Relacionados</h4>
+              <div className="flex flex-wrap gap-2">
+                {featuredPost.frontmatter.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800">
+                <h4 className="font-mono font-semibold mb-3 text-zinc-900 dark:text-zinc-50">Extracto</h4>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-6">
+                  {featuredPost.frontmatter.description.split("\n").slice(0, 3).join(" ").substring(0, 300)}...
+                </p>
+              </div>
+            </div> */}
           </div>
         </section>
 
         {/* Recent Posts */}
         <section className="py-16">
-          <h2 className="mb-8 font-mono text-xs font-normal uppercase tracking-[0.22em] text-zinc-500">
-            Artículos recientes
-          </h2>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <h2 className="mb-8 text-zinc-900 dark:text-zinc-50">Artículos Recientes</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {recentPosts.map((post) => (
               <BlogPostCard key={post.slug} slug={post.slug} frontmatter={post.frontmatter} />
             ))}
@@ -73,7 +100,7 @@ export default async function Home() {
           <div className="mt-12 text-center">
             <Link
               href="/posts"
-              className="inline-flex min-h-11 items-center border border-zinc-700 px-6 font-mono text-xs uppercase tracking-[0.18em] text-zinc-100 transition-colors hover:border-zinc-100"
+              className="inline-flex items-center px-6 py-3 border border-zinc-300 dark:border-zinc-700 text-base font-medium rounded-md text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500"
             >
               Ver todos los artículos
             </Link>

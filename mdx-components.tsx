@@ -9,7 +9,7 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
         {...props}
         unoptimized
         alt={props.alt}
-        className="mx-auto max-w-11/12 border border-zinc-800"
+        className="rounded-lg max-w-11/12 mx-auto shadow-xl border border-zinc-200 dark:border-zinc-800"
       />
     ),
   };

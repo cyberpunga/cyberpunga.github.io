@@ -18,10 +18,10 @@ export function PostsList({ posts }: { posts: PostSummary[] }) {
   return (
     <>
       {activeTagSlug && (
-        <div className="mb-8 flex flex-wrap items-center gap-3 border-b border-zinc-900 pb-6">
-          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Filtrando por</span>
+        <div className="mb-8 flex flex-wrap items-center gap-3 border-b border-zinc-200 pb-6 dark:border-zinc-800">
+          <span className="text-sm text-zinc-600 dark:text-zinc-400">Filtrando por</span>
           <Tag tag={activeTagSlug} />
-          <Link href="/posts" className="font-mono text-xs uppercase tracking-[0.18em] text-[#c3d9f3] hover:underline">
+          <Link href="/posts" className="text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-100">
             Ver todos
           </Link>
         </div>
@@ -32,23 +32,19 @@ export function PostsList({ posts }: { posts: PostSummary[] }) {
           {filteredPosts.map((post) => (
             <article
               key={post.slug}
-              className="border-b border-zinc-900 pb-12 last:border-0"
+              className="border-b border-zinc-200 pb-12 last:border-0 dark:border-zinc-800"
             >
               <div className="mb-3 flex items-center space-x-2">
-                <time className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                  {formatDate(post.frontmatter.date)}
-                </time>
-                <span className="text-zinc-700">/</span>
-                <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
-                  {post.frontmatter.tags[0]}
-                </span>
+                <time className="text-sm text-zinc-500 dark:text-zinc-400">{formatDate(post.frontmatter.date)}</time>
+                <span className="text-zinc-300 dark:text-zinc-600">•</span>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">{post.frontmatter.tags[0]}</span>
               </div>
-              <h2 className="mb-3 font-mono text-2xl font-normal text-zinc-50">
-                <Link href={`/posts/${post.slug}`} className="transition-colors hover:text-[#c3d9f3]">
+              <h2 className="mb-3 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
+                <Link href={`/posts/${post.slug}`} className="hover:underline">
                   {post.frontmatter.title}
                 </Link>
               </h2>
-              <p className="mb-4 leading-7 text-zinc-400">{post.frontmatter.description}</p>
+              <p className="mb-4 text-zinc-700 dark:text-zinc-300">{post.frontmatter.description}</p>
               <div className="mb-4 flex flex-wrap gap-2">
                 {post.frontmatter.tags.map((tag) => (
                   <Tag key={tag} tag={tag} />
@@ -56,7 +52,7 @@ export function PostsList({ posts }: { posts: PostSummary[] }) {
               </div>
               <Link
                 href={`/posts/${post.slug}`}
-                className="inline-flex items-center font-mono text-xs uppercase tracking-[0.18em] text-[#c3d9f3] hover:underline"
+                className="inline-flex items-center font-medium text-zinc-900 hover:underline dark:text-zinc-100"
               >
                 Leer artículo completo
                 <svg
@@ -73,8 +69,8 @@ export function PostsList({ posts }: { posts: PostSummary[] }) {
           ))}
         </div>
       ) : (
-        <div className="border-b border-zinc-900 pb-12">
-          <p className="text-zinc-400">No hay artículos para este tag.</p>
+        <div className="border-b border-zinc-200 pb-12 dark:border-zinc-800">
+          <p className="text-zinc-700 dark:text-zinc-300">No hay artículos para este tag.</p>
         </div>
       )}
     </>

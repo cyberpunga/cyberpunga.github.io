@@ -12,22 +12,15 @@ The site exports static HTML via `output: "export"` and is deployed to GitHub Pa
 - Content collections live in `content/<collection>/`.
 - Each collection has a `content/<collection>/_type.json` definition with labels, route, sort, and dashboard field schema.
 - Posts live in `content/posts/<slug>/page.mdx` but keep public URLs at `/posts/<slug>`.
-- Tumblr-style starter collections live in `content/texts`, `content/photos`, `content/photosets`, `content/quotes`, `content/links`, `content/chats`, `content/audios`, `content/videos`, and `content/answers`.
 - Content metadata is loaded from MDX frontmatter.
 - `lib/content.ts` scans collection directories, imports MDX modules, reads `frontmatter`, and supports generic static collection routes.
 - `lib/posts.ts` wraps `lib/content.ts` for the custom posts UI and sorts posts newest-first via the posts collection definition.
 - `app/[collection]/page.tsx` and `app/[collection]/[slug]/page.tsx` statically generate collection list/detail pages with `generateStaticParams`; they special-case `posts` to preserve the custom article UX.
 - `app/posts/posts-list.tsx` is a client component for query-string tag filtering.
-- `components/site-header.tsx` generates its menu from public collection definitions via `getGenericCollections()`.
-- `lib/default-collections.ts` bundles repo-native `_type.json` definitions for client-side dashboard bootstrapping.
 - Shared UI lives in `components/`.
 - shadcn-style primitives live in `components/ui/`.
 - Site-wide config and `/dashboard` publishing config live in `lib/site-config.ts`.
 - The repo-native static dashboard lives at `app/dashboard/page.tsx` and is served at `/dashboard`.
-- The dashboard body editor lives in `components/dashboard/mdx-editor.tsx`; it is a client-only, text-based Markdown editor with CodeMirror syntax highlighting, toolbar shortcuts, image drag/drop, and a safe Markdown preview. Publishing still writes the generated MDX source from dashboard state.
-- Dashboard leaf panels and field editors live in `components/dashboard/dashboard-panels.tsx`; dashboard draft, route, MDX, GitHub API, and media helpers live in `lib/dashboard-utils.ts`.
-- Layout-level publishing/deploy feedback lives in `lib/publishing-status-context.tsx` and `components/publishing-status-float.tsx`; dashboard publish flows call the shared provider so GitHub Actions status remains visible across route changes.
-- `DESIGN.md` documents the dark cyberpunga visual system: black canvas, hairline borders, Noto Sans/Noto Sans Mono, sparse chrome, editorial media, and dashboard usability constraints.
 - Repo-local Codex skills live in `.agents/skills/`.
 
 ## Local Skills
@@ -68,11 +61,9 @@ content/<collection>/_type.json
 content/<collection>/<slug>/page.mdx
 ```
 
-Starter collections can be empty and contain only `_type.json` until an author publishes the first entry.
-
 `_type.json` supports v1 light custom fields: `text`, `textarea`, `date`, `boolean`, `select`, `list`, and `tags`. Every publishable entry has implicit `title`, `description`, and MDX body fields.
 
-Non-technical authors can use `/dashboard`. It starts with bundled repo-native collection definitions, validates a locally stored GitHub token, opens to an overview with content shortcuts and deploy history, ensures `content/users/<github-login>/page.mdx` exists for the signed-in user without overwriting an existing entry, loads collection definitions and entries from GitHub, merges remote definitions over bundled defaults, generates frontmatter, creates and edits `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. After writes, it polls the GitHub Actions workflow run for the saved commit so authors can see when the static deploy has finished. Existing entries are edited in place with their current GitHub file SHA; static-export-safe dashboard deep links use hash client routes like `/dashboard#/collections/<collection>/entries/<slug>`, with new entries at `/dashboard#/collections/<collection>/new` and new content types at `/dashboard#/types/new`. Repository owner/name/branch, deployment workflow name, and token-template values come from `siteConfig.writer`.
+Non-technical authors can use `/dashboard`. It validates a locally stored GitHub token before rendering the editor, ensures `content/users/<github-login>/page.mdx` exists for the signed-in user without overwriting an existing entry, loads collection definitions from GitHub, generates frontmatter, writes entries to `content/<collection>/<slug>/page.mdx`, uploads media under each entry's `images/` folder, creates new collection `_type.json` files, and commits via GitHub's Contents API using the author's fine-grained PAT stored only in their browser. Repository owner/name/branch and token-template values come from `siteConfig.writer`.
 
 ## Commands
 
@@ -120,7 +111,8 @@ Dashboard-created collection routes become public after the next static build/de
 ## Known Gotchas
 
 - The home page assumes at least one post exists.
+- `app/globals.css` appears to have a typo: `var(----font-noto-sans)` should likely be `var(--font-noto-sans)`.
 - `next lint` is deprecated.
 - `pnpm start` is not the right production path for static export; serve the generated `out/` directory instead.
 - The public route segments `posts`, `dashboard`, and `about` are reserved for content collections.
-- `/dashboard` authors need repository access and a fine-grained GitHub PAT with `Contents: write` and `Actions: read`. GitHub token URLs can prefill resource owner and permissions, but not the specific selected repository via documented query params; authors must select `cyberpunga.github.io` in GitHub's Repository access UI. Outside collaborators on organization repos may need different GitHub access setup if fine-grained PAT limitations apply.
+- `/dashboard` authors need repository access and a fine-grained GitHub PAT with `Contents: write`. GitHub token URLs can prefill resource owner and permissions, but not the specific selected repository via documented query params; authors must select `cyberpunga.github.io` in GitHub's Repository access UI. Outside collaborators on organization repos may need different GitHub access setup if fine-grained PAT limitations apply.
