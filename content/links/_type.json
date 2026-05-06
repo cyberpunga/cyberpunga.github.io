@@ -1,0 +1,49 @@
+{
+  "id": "links",
+  "label": "Enlace",
+  "pluralLabel": "Enlaces",
+  "description": "Links recomendados con comentario editorial.",
+  "route": "enlaces",
+  "bodyLabel": "Comentario",
+  "bodyPlaceholder": "Escribe por qué vale la pena abrir este enlace.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "url",
+      "label": "URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://..."
+    },
+    {
+      "name": "site_name",
+      "label": "Sitio",
+      "type": "text",
+      "required": false,
+      "placeholder": "Nombre del sitio o publicación"
+    },
+    {
+      "name": "via_url",
+      "label": "Vía",
+      "type": "text",
+      "required": false,
+      "placeholder": "https://..."
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "link, lectura"
+    }
+  ]
+}

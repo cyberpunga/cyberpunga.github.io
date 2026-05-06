@@ -1,0 +1,53 @@
+{
+  "id": "audios",
+  "label": "Audio",
+  "pluralLabel": "Audios",
+  "description": "Pistas, mixes, notas sonoras y piezas para escuchar.",
+  "route": "audios",
+  "bodyLabel": "Notas",
+  "bodyPlaceholder": "Agrega contexto, tracklist o comentarios en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "audio_url",
+      "label": "Audio URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "Spotify, SoundCloud, Bandcamp o archivo público"
+    },
+    {
+      "name": "artist",
+      "label": "Artista",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "track_title",
+      "label": "Título de la pista",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "album",
+      "label": "Álbum o serie",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "audio, música"
+    }
+  ]
+}

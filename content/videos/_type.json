@@ -1,0 +1,55 @@
+{
+  "id": "videos",
+  "label": "Video",
+  "pluralLabel": "Videos",
+  "description": "Videos propios o embebidos con notas editoriales.",
+  "route": "videos",
+  "bodyLabel": "Notas",
+  "bodyPlaceholder": "Agrega contexto, transcripción o comentario en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "video_url",
+      "label": "Video URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "YouTube, Vimeo, Dailymotion o archivo público"
+    },
+    {
+      "name": "platform",
+      "label": "Plataforma",
+      "type": "select",
+      "required": false,
+      "options": ["YouTube", "Vimeo", "Dailymotion", "Archivo", "Otro"]
+    },
+    {
+      "name": "creator",
+      "label": "Creador/a",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "duration",
+      "label": "Duración",
+      "type": "text",
+      "required": false,
+      "placeholder": "03:24"
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "video, archivo"
+    }
+  ]
+}

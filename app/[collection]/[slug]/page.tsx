@@ -84,26 +84,30 @@ export default async function CollectionEntryPage({
   const detailFields = getDetailFields(entry);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-black">
       <main className="container mx-auto px-4 py-12">
         <article className="max-w-3xl mx-auto">
           <header className="mb-10">
             <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1">
               <Link
                 href={`/${collection.route}`}
-                className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                className="inline-flex items-center font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500 transition-colors hover:text-[#c3d9f3]"
               >
                 Volver a {collection.pluralLabel.toLowerCase()}
               </Link>
               {date ? (
                 <>
-                  <span className="text-zinc-300 dark:text-zinc-600">•</span>
-                  <time className="text-sm text-zinc-500 dark:text-zinc-400">{formatDate(date)}</time>
+                  <span className="text-zinc-700">/</span>
+                  <time className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                    {formatDate(date)}
+                  </time>
                 </>
               ) : null}
             </div>
-            <h1 className="mb-4 text-3xl text-zinc-900 dark:text-zinc-50">{frontmatter.title}</h1>
-            <p className="mb-6 text-xl text-zinc-700 dark:text-zinc-300">{frontmatter.description}</p>
+            <h1 className="mb-4 font-mono text-3xl font-normal leading-tight text-zinc-50 md:text-5xl">
+              {frontmatter.title}
+            </h1>
+            <p className="mb-6 text-lg leading-7 text-zinc-400">{frontmatter.description}</p>
             {tags.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
@@ -112,11 +116,11 @@ export default async function CollectionEntryPage({
               </div>
             ) : null}
             {detailFields.length > 0 ? (
-              <dl className="mt-8 grid gap-4 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800 sm:grid-cols-2">
+              <dl className="mt-8 grid gap-4 border-t border-zinc-900 pt-6 text-sm sm:grid-cols-2">
                 {detailFields.map(({ label, value }) => (
                   <div key={label}>
-                    <dt className="text-zinc-500 dark:text-zinc-400">{label}</dt>
-                    <dd className="mt-1 text-zinc-900 dark:text-zinc-100">{value}</dd>
+                    <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">{label}</dt>
+                    <dd className="mt-1 text-zinc-100">{value}</dd>
                   </div>
                 ))}
               </dl>
@@ -126,7 +130,7 @@ export default async function CollectionEntryPage({
             <Entry />
           </ProseContainer>
           {(prevEntry || nextEntry) && (
-            <div className="mt-16 grid grid-cols-1 gap-8 border-t border-zinc-200 pt-8 dark:border-zinc-800 md:grid-cols-2">
+            <div className="mt-16 grid grid-cols-1 gap-8 border-t border-zinc-900 pt-8 md:grid-cols-2">
               {prevEntry ? <EntryLink entry={prevEntry} label="Anterior" /> : <div />}
               {nextEntry ? <EntryLink entry={nextEntry} label="Siguiente" /> : null}
             </div>
@@ -145,22 +149,26 @@ async function BlogPostEntryPage({ slug }: { slug: string }) {
   const nextPost = currentIndex < blogPosts.length - 1 ? blogPosts[currentIndex + 1] : null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-black">
       <main className="container mx-auto px-4 py-12">
         <article className="max-w-3xl mx-auto">
           <header className="mb-10">
             <div className="mb-4 flex items-center space-x-2">
               <Link
                 href="/posts"
-                className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+                className="inline-flex items-center font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500 transition-colors hover:text-[#c3d9f3]"
               >
                 Volver a artículos
               </Link>
-              <span className="text-zinc-300 dark:text-zinc-600">•</span>
-              <time className="text-sm text-zinc-500 dark:text-zinc-400">{formatDate(frontmatter.date)}</time>
+              <span className="text-zinc-700">/</span>
+              <time className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                {formatDate(frontmatter.date)}
+              </time>
             </div>
-            <h1 className="mb-4 text-3xl text-zinc-900 dark:text-zinc-50">{frontmatter.title}</h1>
-            <p className="mb-6 text-xl text-zinc-700 dark:text-zinc-300">{frontmatter.description}</p>
+            <h1 className="mb-4 font-mono text-3xl font-normal leading-tight text-zinc-50 md:text-5xl">
+              {frontmatter.title}
+            </h1>
+            <p className="mb-6 text-lg leading-7 text-zinc-400">{frontmatter.description}</p>
             <div className="flex flex-wrap gap-2">
               {frontmatter.tags.map((tag) => (
                 <Tag key={tag} tag={tag} />
@@ -170,7 +178,7 @@ async function BlogPostEntryPage({ slug }: { slug: string }) {
           <ProseContainer>
             <Post />
           </ProseContainer>
-          <div className="mt-16 grid grid-cols-1 gap-8 border-t border-zinc-200 pt-8 dark:border-zinc-800 md:grid-cols-2">
+          <div className="mt-16 grid grid-cols-1 gap-8 border-t border-zinc-900 pt-8 md:grid-cols-2">
             {prevPost ? <BlogPostCard key={prevPost.slug} slug={prevPost.slug} frontmatter={prevPost.frontmatter} /> : null}
             {nextPost ? <BlogPostCard key={nextPost.slug} slug={nextPost.slug} frontmatter={nextPost.frontmatter} /> : null}
           </div>
@@ -184,10 +192,10 @@ function EntryLink({ entry, label }: { entry: ContentSummary; label: string }) {
   return (
     <Link
       href={`/${entry.collection.route}/${entry.slug}`}
-      className="block border border-zinc-200 p-5 transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+      className="block border border-zinc-900 p-5 transition-colors hover:border-zinc-700"
     >
-      <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
-      <p className="mt-2 font-semibold text-zinc-950 dark:text-zinc-50">{entry.frontmatter.title}</p>
+      <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">{label}</span>
+      <p className="mt-2 font-mono text-sm text-zinc-50">{entry.frontmatter.title}</p>
     </Link>
   );
 }

@@ -1,0 +1,55 @@
+{
+  "id": "photos",
+  "label": "Foto",
+  "pluralLabel": "Fotos",
+  "description": "Imágenes individuales con pie, crédito y texto alternativo.",
+  "route": "fotos",
+  "bodyLabel": "Caption",
+  "bodyPlaceholder": "Escribe el pie de foto o contexto en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "image_url",
+      "label": "Imagen URL",
+      "type": "text",
+      "required": false,
+      "placeholder": "Usa una imagen subida o pega una URL pública"
+    },
+    {
+      "name": "alt_text",
+      "label": "Texto alternativo",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Describe la imagen para lectores de pantalla."
+    },
+    {
+      "name": "credit",
+      "label": "Crédito",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "source_url",
+      "label": "Fuente",
+      "type": "text",
+      "required": false,
+      "placeholder": "https://..."
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "foto, archivo"
+    }
+  ]
+}

@@ -1,124 +1,135 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { baseInputClass } from "@/components/dashboard/dashboard-panels";
+import {
+  DashboardCollectionIndexView,
+  DashboardEntryEditorView,
+  DashboardNewTypeView,
+  DashboardOverviewView,
+} from "@/components/dashboard/dashboard-views";
 import {
   type CollectionDefinition,
   type ContentFieldDefinition,
-  type ContentFieldType,
-  contentFieldTypes,
-  fieldNameFromLabel,
-  isReservedCollectionRoute,
-  isSafeContentSegment,
-  isSafeFieldName,
-  normalizeCollectionDefinition,
   normalizeContentSegment,
   orderCollectionDefinitions,
-  postCollectionDefinition,
 } from "@/lib/content-schema";
 import {
-  buildGitHubTokenUrl,
-  githubErrorMessage,
-  githubHeaders,
-  writerRepository,
-  writerRepositoryFullName,
-  writerStorage,
-} from "@/lib/github-auth";
+  defaultCollectionDefinitions,
+  defaultPostCollectionDefinition,
+} from "@/lib/default-collections";
+import {
+  type ActionState,
+  type CollectionEntriesCache,
+  type DashboardRoute,
+  type DeploymentHistoryRun,
+  type EditingEntry,
+  type EntryDraft,
+  type EntrySummary,
+  type FieldDraftValue,
+  type NewFieldDraft,
+  type SelectedImage,
+  type TypeDraft,
+  appendMarkdownSnippet,
+  buildCollectionDefinition,
+  buildImageMarkdown,
+  buildMdx,
+  buildPublicCollectionUrl,
+  buildPublicEntryUrl,
+  collectionEntriesSuccessState,
+  dashboardPageTitle,
+  dashboardRouteHash,
+  dashboardRouteHref,
+  draftStorageKey,
+  emptyEntryDraft,
+  emptyTypeDraft,
+  ensurePathIsNew,
+  fileToBase64,
+  getDraftSortValue,
+  getTagsForCollection,
+  loadCollectionsFromGitHub,
+  loadDeploymentHistory,
+  loadEntriesFromGitHub,
+  loadEntryFromGitHub,
+  loadEntryImageNamesFromGitHub,
+  parseStoredDraft,
+  putFile,
+  randomId,
+  readDashboardRouteState,
+  sanitizeFileName,
+  sortEntrySummaries,
+  textToBase64,
+  uniqueFileName,
+  validateEntryDraft,
+} from "@/lib/dashboard-utils";
+import { buildGitHubTokenUrl, writerRepository, writerRepositoryFullName, writerStorage } from "@/lib/github-auth";
 import { useAuth } from "@/lib/github-auth-context";
+import { usePublishingStatus } from "@/lib/publishing-status-context";
+import { siteConfig } from "@/lib/site-config";
 import {
   ExternalLink,
   FileText,
-  ImagePlus,
   KeyRound,
   ListPlus,
   LogOut,
   Plus,
   RefreshCw,
   Send,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-
-type SelectedImage = {
-  id: string;
-  file: File;
-  safeName: string;
-  previewUrl: string;
-};
-
-type ActionState = {
-  kind: "idle" | "working" | "success" | "error";
-  message: string;
-  href?: string;
-};
-
-type FieldDraftValue = string | boolean;
-
-type EntryDraft = {
-  title: string;
-  description: string;
-  fieldValues: Record<string, FieldDraftValue>;
-  body: string;
-};
-
-type NewFieldDraft = {
-  id: string;
-  label: string;
-  type: ContentFieldType;
-  required: boolean;
-  placeholder: string;
-  optionsInput: string;
-};
-
-type TypeDraft = {
-  label: string;
-  pluralLabel: string;
-  description: string;
-  fields: NewFieldDraft[];
-};
-
-type GitHubContentItem = {
-  type?: string;
-  name?: string;
-  content?: string;
-  encoding?: string;
-};
-
-const emptyTypeDraft = (): TypeDraft => ({
-  label: "",
-  pluralLabel: "",
-  description: "",
-  fields: [],
-});
-
-const baseInputClass =
-  "h-11 rounded-md border border-zinc-300 bg-background px-3 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
-const textareaClass =
-  "resize-y rounded-md border border-zinc-300 bg-background px-3 py-2 text-base outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700";
-
+import { useEffect, useMemo, useRef, useState } from "react";
 export default function DashboardPage() {
   const { auth, signIn, signOut } = useAuth();
-  const [collections, setCollections] = useState<CollectionDefinition[]>([postCollectionDefinition]);
+  const {
+    actionState: publishingActionState,
+    deploymentState,
+    clearPublishingStatus,
+    setPublishingActionState,
+    startDeploymentWatch,
+  } = usePublishingStatus();
+  const [collections, setCollections] = useState<CollectionDefinition[]>(defaultCollectionDefinitions);
   const [collectionsState, setCollectionsState] = useState<ActionState>({ kind: "idle", message: "" });
-  const [selectedCollectionId, setSelectedCollectionId] = useState(postCollectionDefinition.id);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(defaultPostCollectionDefinition.id);
   const selectedCollection = useMemo(
-    () => collections.find((collection) => collection.id === selectedCollectionId) ?? collections[0] ?? postCollectionDefinition,
+    () => collections.find((collection) => collection.id === selectedCollectionId) ?? collections[0] ?? defaultPostCollectionDefinition,
     [collections, selectedCollectionId],
   );
   const [draft, setDraft] = useState<EntryDraft>(() => emptyEntryDraft(selectedCollection));
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [typeDraft, setTypeDraft] = useState<TypeDraft>(emptyTypeDraft);
   const [images, setImages] = useState<SelectedImage[]>([]);
+  const [existingImageNames, setExistingImageNames] = useState<Set<string>>(() => new Set());
+  const [entriesByCollection, setEntriesByCollection] = useState<Record<string, CollectionEntriesCache>>({});
+  const [editingEntry, setEditingEntry] = useState<EditingEntry | null>(null);
+  const [routeState, setRouteState] = useState<DashboardRoute>({ view: "overview" });
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle", message: "" });
+  const [deployHistory, setDeployHistory] = useState<DeploymentHistoryRun[]>([]);
+  const [deployHistoryState, setDeployHistoryState] = useState<ActionState>({ kind: "idle", message: "" });
   const [tokenInput, setTokenInput] = useState("");
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const imagesRef = useRef<SelectedImage[]>([]);
 
   const authToken = auth.kind === "signed-in" ? auth.token : "";
+  const routeCollectionId = "collectionId" in routeState ? routeState.collectionId : "";
   const slug = useMemo(() => normalizeContentSegment(draft.title), [draft.title]);
+  const activeEditingEntry = editingEntry?.collectionId === selectedCollection.id ? editingEntry : null;
+  const isEditing = routeState.view === "edit-entry";
+  const isNewEntryRoute = routeState.view === "new-entry";
+  const isEntryEditorRoute = routeState.view === "new-entry" || routeState.view === "edit-entry";
+  const isLoadingEditingEntry = routeState.view === "edit-entry" && activeEditingEntry?.slug !== routeState.entrySlug;
+  const outputSlug = activeEditingEntry ? activeEditingEntry.slug : slug || "entry-title";
   const mdx = useMemo(() => buildMdx(selectedCollection, draft), [selectedCollection, draft]);
   const tokenUrl = useMemo(() => buildGitHubTokenUrl(), []);
-  const entryPath = `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
+  const selectedCollectionEntriesCache = entriesByCollection[selectedCollection.id];
+  const entries = selectedCollectionEntriesCache?.entries ?? [];
+  const entriesState = selectedCollectionEntriesCache?.state ?? { kind: "idle", message: "" };
+  const entryPath = activeEditingEntry
+    ? activeEditingEntry.path
+    : `content/${selectedCollection.id}/${slug || "entry-title"}/page.mdx`;
+  const previewImageBaseUrl = activeEditingEntry
+    ? `https://raw.githubusercontent.com/${writerRepositoryFullName}/${writerRepository.branch}/content/${encodeURIComponent(
+        selectedCollection.id,
+      )}/${encodeURIComponent(activeEditingEntry.slug)}/images`
+    : "";
   const selectedTags = getTagsForCollection(selectedCollection, draft);
 
   useEffect(() => {
@@ -130,9 +141,28 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    function readRouteState() {
+      setRouteState(readDashboardRouteState());
+    }
+
+    readRouteState();
+    window.addEventListener("popstate", readRouteState);
+    window.addEventListener("hashchange", readRouteState);
+
+    return () => {
+      window.removeEventListener("popstate", readRouteState);
+      window.removeEventListener("hashchange", readRouteState);
+    };
+  }, []);
+
+  useEffect(() => {
     if (auth.kind !== "signed-in" || !authToken) {
-      setCollections([postCollectionDefinition]);
+      setCollections(defaultCollectionDefinitions);
       setCollectionsState({ kind: "idle", message: "" });
+      setEntriesByCollection({});
+      setDeployHistory([]);
+      setDeployHistoryState({ kind: "idle", message: "" });
+      setEditingEntry(null);
       return;
     }
 
@@ -153,7 +183,7 @@ export default function DashboardPage() {
           return;
         }
 
-        setCollections([postCollectionDefinition]);
+        setCollections(defaultCollectionDefinitions);
         setCollectionsState({
           kind: "error",
           message: error instanceof Error ? error.message : "Could not load content types.",
@@ -166,30 +196,167 @@ export default function DashboardPage() {
   }, [auth.kind, authToken]);
 
   useEffect(() => {
+    if (routeCollectionId && collections.some((collection) => collection.id === routeCollectionId)) {
+      setSelectedCollectionId(routeCollectionId);
+    }
+  }, [collections, routeCollectionId]);
+
+  useEffect(() => {
     if (!collections.some((collection) => collection.id === selectedCollectionId)) {
-      setSelectedCollectionId(collections[0]?.id ?? postCollectionDefinition.id);
+      setSelectedCollectionId(collections[0]?.id ?? defaultPostCollectionDefinition.id);
     }
   }, [collections, selectedCollectionId]);
 
   useEffect(() => {
+    if (routeState.view === "edit-entry") {
+      return;
+    }
+
     setDraftLoaded(false);
 
-    const savedDraft = window.localStorage.getItem(draftStorageKey(selectedCollection.id));
+    const savedDraft =
+      routeState.view === "new-entry" ? window.localStorage.getItem(draftStorageKey(selectedCollection.id)) : "";
     const nextDraft = savedDraft ? parseStoredDraft(savedDraft, selectedCollection) : emptyEntryDraft(selectedCollection);
 
     setDraft(nextDraft);
+    setEditingEntry((current) => (current?.collectionId === selectedCollection.id ? current : null));
+    setExistingImageNames(new Set());
     clearSelectedImages();
     setActionState({ kind: "idle", message: "" });
     setDraftLoaded(true);
-  }, [selectedCollection]);
+  }, [routeState.view, selectedCollection]);
 
   useEffect(() => {
-    if (!draftLoaded) {
+    if (!draftLoaded || !isNewEntryRoute) {
       return;
     }
 
     window.localStorage.setItem(draftStorageKey(selectedCollection.id), JSON.stringify(draft));
-  }, [draft, draftLoaded, selectedCollection.id]);
+  }, [draft, draftLoaded, isNewEntryRoute, selectedCollection.id]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    let ignore = false;
+    setDeployHistoryState({ kind: "working", message: "Loading deploy history..." });
+
+    loadDeploymentHistory(auth.token)
+      .then((runs) => {
+        if (ignore) {
+          return;
+        }
+
+        setDeployHistory(runs);
+        setDeployHistoryState({
+          kind: "success",
+          message: runs.length ? `${runs.length} deploy runs loaded.` : "No deploy runs found.",
+        });
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setDeployHistory([]);
+        setDeployHistoryState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not load deploy history.",
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    let ignore = false;
+
+    collections.forEach((collection) => {
+      setCollectionEntriesState(collection.id, {
+        kind: "working",
+        message: `Loading ${collection.pluralLabel.toLowerCase()}...`,
+      });
+
+      loadEntriesFromGitHub(collection, auth.token)
+        .then((nextEntries) => {
+          if (ignore) {
+            return;
+          }
+
+          setCollectionEntries(collection, nextEntries);
+        })
+        .catch((error) => {
+          if (ignore) {
+            return;
+          }
+
+          setCollectionEntriesFailure(
+            collection.id,
+            error instanceof Error ? error.message : "Could not load entries.",
+          );
+        });
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth, collections]);
+
+  useEffect(() => {
+    if (auth.kind !== "signed-in" || routeState.view !== "edit-entry" || selectedCollection.id !== routeState.collectionId) {
+      return;
+    }
+
+    if (editingEntry?.collectionId === selectedCollection.id && editingEntry.slug === routeState.entrySlug) {
+      return;
+    }
+
+    let ignore = false;
+    setActionState({ kind: "working", message: `Loading ${selectedCollection.label.toLowerCase()}...` });
+
+    Promise.all([
+      loadEntryFromGitHub(selectedCollection, routeState.entrySlug, auth.token),
+      loadEntryImageNamesFromGitHub(selectedCollection.id, routeState.entrySlug, auth.token),
+    ])
+      .then(([entry, remoteImageNames]) => {
+        if (ignore) {
+          return;
+        }
+
+        setDraft(entry.draft);
+        setDraftLoaded(true);
+        setEditingEntry({
+          collectionId: selectedCollection.id,
+          slug: entry.slug,
+          path: entry.path,
+          sha: entry.sha,
+        });
+        setExistingImageNames(remoteImageNames);
+        clearSelectedImages();
+        setActionState({ kind: "idle", message: "" });
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setActionState({
+          kind: "error",
+          message: error instanceof Error ? error.message : "Could not load entry.",
+        });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [auth, routeState, selectedCollection, editingEntry]);
 
   useEffect(() => {
     imagesRef.current = images;
@@ -227,11 +394,12 @@ export default function DashboardPage() {
     }
   }
 
-  function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    const existingNames = new Set(images.map((image) => image.safeName));
-    const nextImages = files.map((file, index) => {
-      const safeName = uniqueFileName(sanitizeFileName(file.name), existingNames, images.length + index + 1);
+  function stageImageFiles(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const currentImages = imagesRef.current;
+    const existingNames = new Set([...existingImageNames, ...currentImages.map((image) => image.safeName)]);
+    const nextImages = imageFiles.map((file, index) => {
+      const safeName = uniqueFileName(sanitizeFileName(file.name), existingNames, currentImages.length + index + 1);
       existingNames.add(safeName);
 
       return {
@@ -241,9 +409,12 @@ export default function DashboardPage() {
         previewUrl: URL.createObjectURL(file),
       };
     });
+    const nextImageState = [...currentImages, ...nextImages];
 
-    setImages((current) => [...current, ...nextImages]);
-    event.target.value = "";
+    imagesRef.current = nextImageState;
+    setImages(nextImageState);
+
+    return nextImages;
   }
 
   function removeImage(id: string) {
@@ -253,37 +424,80 @@ export default function DashboardPage() {
         URL.revokeObjectURL(image.previewUrl);
       }
 
-      return current.filter((item) => item.id !== id);
+      const nextImages = current.filter((item) => item.id !== id);
+      imagesRef.current = nextImages;
+
+      return nextImages;
     });
   }
 
   function clearSelectedImages() {
     setImages((current) => {
       current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      imagesRef.current = [];
       return [];
     });
   }
 
   function insertImageMarkdown(image: SelectedImage) {
-    const alt = image.safeName.replace(/\.[^.]+$/, "").replaceAll("-", " ");
-    const snippet = `\n\n![${alt}](./images/${image.safeName})\n`;
-    const textarea = bodyRef.current;
+    updateDraft("body", appendMarkdownSnippet(draft.body, buildImageMarkdown(image)));
+  }
 
-    if (!textarea) {
-      updateDraft("body", `${draft.body}${snippet}`);
-      return;
+  function selectCollection(collectionId: string) {
+    setEditingEntry(null);
+    setExistingImageNames(new Set());
+    navigateDashboard({ view: "collection", collectionId });
+  }
+
+  function navigateDashboard(route: DashboardRoute) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("type");
+    url.searchParams.delete("entry");
+    url.hash = dashboardRouteHash(route);
+
+    if (url.toString() !== window.location.href) {
+      window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
     }
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const nextBody = `${draft.body.slice(0, start)}${snippet}${draft.body.slice(end)}`;
-    updateDraft("body", nextBody);
+    setRouteState(route);
+  }
 
-    window.requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = start + snippet.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
+  function startNewEntry() {
+    setEditingEntry(null);
+    setExistingImageNames(new Set());
+    clearSelectedImages();
+    setActionState({ kind: "idle", message: "" });
+    navigateDashboard({ view: "new-entry", collectionId: selectedCollection.id });
+  }
+
+  function setCollectionEntriesState(collectionId: string, state: ActionState) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collectionId]: {
+        entries: current[collectionId]?.entries ?? [],
+        state,
+      },
+    }));
+  }
+
+  function setCollectionEntries(collection: CollectionDefinition, nextEntries: EntrySummary[]) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collection.id]: {
+        entries: nextEntries,
+        state: collectionEntriesSuccessState(collection, nextEntries),
+      },
+    }));
+  }
+
+  function setCollectionEntriesFailure(collectionId: string, message: string) {
+    setEntriesByCollection((current) => ({
+      ...current,
+      [collectionId]: {
+        entries: [],
+        state: { kind: "error", message },
+      },
+    }));
   }
 
   async function refreshCollections() {
@@ -305,48 +519,175 @@ export default function DashboardPage() {
     }
   }
 
+  async function refreshEntries() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setCollectionEntriesState(selectedCollection.id, {
+      kind: "working",
+      message: `Loading ${selectedCollection.pluralLabel.toLowerCase()}...`,
+    });
+
+    try {
+      const nextEntries = await loadEntriesFromGitHub(selectedCollection, auth.token);
+      setCollectionEntries(selectedCollection, nextEntries);
+    } catch (error) {
+      setCollectionEntriesFailure(
+        selectedCollection.id,
+        error instanceof Error ? error.message : "Could not load entries.",
+      );
+    }
+  }
+
+  async function refreshDeployHistory() {
+    if (auth.kind !== "signed-in") {
+      return;
+    }
+
+    setDeployHistoryState({ kind: "working", message: "Loading deploy history..." });
+
+    try {
+      const runs = await loadDeploymentHistory(auth.token);
+      setDeployHistory(runs);
+      setDeployHistoryState({
+        kind: "success",
+        message: runs.length ? `${runs.length} deploy runs loaded.` : "No deploy runs found.",
+      });
+    } catch (error) {
+      setDeployHistoryState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not load deploy history.",
+      });
+    }
+  }
+
   async function publishEntry() {
     if (auth.kind !== "signed-in") {
       return;
     }
 
-    setActionState({ kind: "working", message: `Preparing ${selectedCollection.label.toLowerCase()}...` });
+    if (isEditing && !activeEditingEntry) {
+      setActionState({
+        kind: "error",
+        message: "Wait for the entry to finish loading before saving.",
+      });
+      return;
+    }
+
+    setActionState({
+      kind: "working",
+      message: `${isEditing ? "Preparing update for" : "Preparing"} ${selectedCollection.label.toLowerCase()}...`,
+    });
+    clearPublishingStatus();
+    setPublishingActionState({
+      kind: "working",
+      message: `${isEditing ? "Preparing update for" : "Preparing"} ${selectedCollection.label.toLowerCase()}...`,
+    });
 
     try {
-      validateEntryDraft(selectedCollection, draft, slug, auth.token);
+      const targetSlug = activeEditingEntry ? activeEditingEntry.slug : slug;
+      const pagePath = activeEditingEntry
+        ? activeEditingEntry.path
+        : `content/${selectedCollection.id}/${targetSlug}/page.mdx`;
 
-      const pagePath = `content/${selectedCollection.id}/${slug}/page.mdx`;
-      await ensurePathIsNew(pagePath, auth.token.trim());
+      validateEntryDraft(selectedCollection, draft, targetSlug, auth.token);
+
+      if (!activeEditingEntry) {
+        await ensurePathIsNew(pagePath, auth.token.trim());
+      }
 
       for (const image of images) {
         setActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
+        setPublishingActionState({ kind: "working", message: `Uploading ${image.safeName}...` });
         const content = await fileToBase64(image.file);
         await putFile({
-          path: `content/${selectedCollection.id}/${slug}/images/${image.safeName}`,
+          path: `content/${selectedCollection.id}/${targetSlug}/images/${image.safeName}`,
           content,
           message: `Add image for ${draft.title}`,
           token: auth.token.trim(),
         });
       }
 
-      setActionState({ kind: "working", message: `Publishing ${selectedCollection.label.toLowerCase()}...` });
+      setActionState({
+        kind: "working",
+        message: `${isEditing ? "Updating" : "Publishing"} ${selectedCollection.label.toLowerCase()}...`,
+      });
+      setPublishingActionState({
+        kind: "working",
+        message: `${isEditing ? "Updating" : "Publishing"} ${selectedCollection.label.toLowerCase()}...`,
+      });
       const result = await putFile({
         path: pagePath,
         content: textToBase64(mdx),
-        message: `Add ${selectedCollection.label.toLowerCase()}: ${draft.title}`,
+        message: `${isEditing ? "Update" : "Add"} ${selectedCollection.label.toLowerCase()}: ${draft.title}`,
         token: auth.token.trim(),
+        sha: activeEditingEntry ? activeEditingEntry.sha : undefined,
       });
 
       window.localStorage.removeItem(draftStorageKey(selectedCollection.id));
-      setDraft(emptyEntryDraft(selectedCollection));
+      const nextEntry = {
+        slug: targetSlug,
+        title: draft.title.trim(),
+        description: draft.description.trim(),
+        path: pagePath,
+        sha: result.content?.sha ?? (activeEditingEntry ? activeEditingEntry.sha : ""),
+        sortValue: getDraftSortValue(selectedCollection, draft),
+      };
+
+      setEntriesByCollection((current) => {
+        const currentEntries = current[selectedCollection.id]?.entries ?? [];
+        const nextEntries = sortEntrySummaries(
+          [...currentEntries.filter((entry) => entry.slug !== targetSlug), nextEntry],
+          selectedCollection,
+        );
+
+        return {
+          ...current,
+          [selectedCollection.id]: {
+            entries: nextEntries,
+            state: collectionEntriesSuccessState(selectedCollection, nextEntries),
+          },
+        };
+      });
+      setEditingEntry(
+        activeEditingEntry
+          ? {
+              collectionId: selectedCollection.id,
+              slug: targetSlug,
+              path: pagePath,
+              sha: nextEntry.sha || activeEditingEntry.sha,
+            }
+          : null,
+      );
+      setExistingImageNames((current) => new Set([...current, ...images.map((image) => image.safeName)]));
+      if (!isEditing) {
+        setDraft(emptyEntryDraft(selectedCollection));
+        navigateDashboard({ view: "collection", collectionId: selectedCollection.id });
+      }
       clearSelectedImages();
       setActionState({
         kind: "success",
-        message: "Published to GitHub.",
+        message: `${isEditing ? "Updated" : "Published"} on GitHub. Waiting for the site deploy now.`,
         href: result.commit.html_url,
+      });
+      setPublishingActionState({
+        kind: "success",
+        message: `${isEditing ? "Updated" : "Published"} on GitHub. Waiting for the site deploy now.`,
+        href: result.commit.html_url,
+      });
+      startDeploymentWatch({
+        sha: result.commit.sha,
+        label: `${selectedCollection.label} "${nextEntry.title}"`,
+        commitUrl: result.commit.html_url,
+        siteUrl: buildPublicEntryUrl(selectedCollection, targetSlug),
       });
     } catch (error) {
       setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Publishing failed.",
+      });
+      setPublishingActionState({
         kind: "error",
         message: error instanceof Error ? error.message : "Publishing failed.",
       });
@@ -359,6 +700,8 @@ export default function DashboardPage() {
     }
 
     setActionState({ kind: "working", message: "Preparing content type..." });
+    clearPublishingStatus();
+    setPublishingActionState({ kind: "working", message: "Preparing content type..." });
 
     try {
       const definition = buildCollectionDefinition(typeDraft, collections);
@@ -374,14 +717,31 @@ export default function DashboardPage() {
 
       setCollections((current) => orderCollectionDefinitions([...current, definition]));
       setSelectedCollectionId(definition.id);
+      setCollectionEntries(definition, []);
       setTypeDraft(emptyTypeDraft());
+      navigateDashboard({ view: "collection", collectionId: definition.id });
       setActionState({
         kind: "success",
-        message: "Content type added to GitHub.",
+        message: "Content type added to GitHub. Waiting for the site deploy now.",
         href: result.commit.html_url,
+      });
+      setPublishingActionState({
+        kind: "success",
+        message: "Content type added to GitHub. Waiting for the site deploy now.",
+        href: result.commit.html_url,
+      });
+      startDeploymentWatch({
+        sha: result.commit.sha,
+        label: `Content type "${definition.pluralLabel}"`,
+        commitUrl: result.commit.html_url,
+        siteUrl: buildPublicCollectionUrl(definition),
       });
     } catch (error) {
       setActionState({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not create content type.",
+      });
+      setPublishingActionState({
         kind: "error",
         message: error instanceof Error ? error.message : "Could not create content type.",
       });
@@ -392,7 +752,7 @@ export default function DashboardPage() {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
         <div className="flex h-48 items-center justify-center">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Checking authentication...</p>
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-500">Checking authentication...</p>
         </div>
       </main>
     );
@@ -401,18 +761,18 @@ export default function DashboardPage() {
   if (auth.kind !== "signed-in") {
     return (
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
-        <header className="border-b border-zinc-200 pb-6 dark:border-zinc-800">
-          <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+        <header className="border-b border-zinc-900 pb-6">
+          <p className="mb-2 font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">
             Dashboard
           </p>
-          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">Sign in with GitHub</h1>
+          <h1 className="font-mono text-3xl font-normal text-zinc-50 md:text-4xl">Sign in with GitHub</h1>
         </header>
 
-        <section className="rounded-lg border border-zinc-200 bg-background p-5 dark:border-zinc-800">
+        <section className="border border-zinc-900 bg-black p-5">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">Repository access</h2>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{writerRepositoryFullName}</p>
+              <h2 className="font-mono text-lg font-normal text-zinc-50">Repository access</h2>
+              <p className="mt-1 font-mono text-xs text-zinc-500">{writerRepositoryFullName}</p>
             </div>
             <Button asChild variant="outline">
               <a href={tokenUrl} target="_blank" rel="noreferrer">
@@ -424,7 +784,7 @@ export default function DashboardPage() {
           </div>
 
           <label className="mb-4 flex flex-col gap-2">
-            <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">GitHub token</span>
+            <span className="font-mono text-xs uppercase tracking-[0.16em] text-zinc-400">GitHub token</span>
             <input
               type="password"
               value={tokenInput}
@@ -439,13 +799,13 @@ export default function DashboardPage() {
             Sign in
           </Button>
 
-          <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            The token link pre-fills the owner and Contents permission. In GitHub, choose Only select repositories,
-            then select {writerRepository.name}. The token stays in this browser.
+          <p className="mt-4 text-sm leading-6 text-zinc-500">
+            The token link pre-fills the owner, Contents write, and Actions read permissions. In GitHub, choose Only
+            select repositories, then select {writerRepository.name}. The token stays in this browser.
           </p>
 
           {auth.kind === "invalid" ? (
-            <p className="mt-4 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+            <p className="mt-4 border border-red-900/60 bg-red-950/30 p-3 text-sm text-red-200">
               {auth.message || "Authentication failed. Check your token and try again."}
             </p>
           ) : null}
@@ -454,296 +814,293 @@ export default function DashboardPage() {
     );
   }
 
+  const signedInAuth = auth;
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6 lg:py-10">
-      <header className="flex flex-col gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800 lg:flex-row lg:items-end lg:justify-between">
+      <header className="flex flex-col gap-4 border-b border-zinc-900 pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="mb-2 text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+          <p className="mb-2 font-mono text-xs font-normal uppercase tracking-[0.18em] text-zinc-500">
             Dashboard
           </p>
-          <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-50 md:text-4xl">
-            New {selectedCollection.label.toLowerCase()}
+          <h1 className="font-mono text-3xl font-normal text-zinc-50 md:text-4xl">
+            {dashboardPageTitle(routeState, selectedCollection)}
           </h1>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-zinc-500">
             Signed in as{" "}
-            <Link href={auth.user.htmlUrl} target="_blank" className="underline">
-              @{auth.user.login}
+            <Link href={signedInAuth.user.htmlUrl} target="_blank" className="text-[#c3d9f3] underline">
+              @{signedInAuth.user.login}
             </Link>
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="flex min-w-56 flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">Type</span>
-            <select
-              value={selectedCollection.id}
-              onChange={(event) => setSelectedCollectionId(event.target.value)}
-              className={baseInputClass}
+          {routeState.view !== "overview" ? (
+            <Button asChild variant="outline">
+              <a href={dashboardRouteHref({ view: "overview" })}>Dashboard</a>
+            </Button>
+          ) : null}
+          {routeState.view !== "new-type" ? (
+            <Button asChild variant="outline">
+              <a href={dashboardRouteHref({ view: "new-type" })}>
+                <ListPlus />
+                New type
+              </a>
+            </Button>
+          ) : null}
+          {routeState.view === "collection" ? (
+            <Button type="button" onClick={startNewEntry}>
+              <Plus />
+              New {selectedCollection.label.toLowerCase()}
+            </Button>
+          ) : null}
+          {isEntryEditorRoute ? (
+            <Button onClick={publishEntry} disabled={actionState.kind === "working" || isLoadingEditingEntry}>
+              <Send />
+              {isEditing ? "Save" : "Publish"}
+            </Button>
+          ) : null}
+        </div>
+      </header>
+
+      {renderCurrentView()}
+    </main>
+  );
+
+  function renderCurrentView() {
+    if (routeState.view === "new-type") {
+      return renderNewTypeView();
+    }
+
+    if (routeState.view === "collection") {
+      return renderCollectionIndex();
+    }
+
+    if (routeState.view === "new-entry" || routeState.view === "edit-entry") {
+      return renderEntryEditor();
+    }
+
+    return renderOverview();
+  }
+
+  function renderOverview() {
+    return (
+      <DashboardOverviewView
+        collections={collections}
+        collectionsState={collectionsState}
+        entriesByCollection={entriesByCollection}
+        publishingActionState={publishingActionState}
+        deploymentState={deploymentState}
+        deployHistory={deployHistory}
+        deployHistoryState={deployHistoryState}
+        onRefreshCollections={refreshCollections}
+        onRefreshDeployHistory={refreshDeployHistory}
+        sessionPanel={renderSessionPanel()}
+        repositoryPanel={renderRepositoryPanel()}
+      />
+    );
+  }
+
+  function renderCollectionIndex() {
+    return (
+      <DashboardCollectionIndexView
+        selectedCollection={selectedCollection}
+        entries={entries}
+        entriesState={entriesState}
+        onRefreshEntries={refreshEntries}
+        onStartNewEntry={startNewEntry}
+        collectionsPanel={renderCollectionsPanel()}
+        sessionPanel={renderSessionPanel()}
+      />
+    );
+  }
+
+  function renderEntryEditor() {
+    return (
+      <DashboardEntryEditorView
+        selectedCollection={selectedCollection}
+        draft={draft}
+        images={images}
+        previewImageBaseUrl={previewImageBaseUrl}
+        mdx={mdx}
+        isEditing={isEditing}
+        isLoadingEditingEntry={isLoadingEditingEntry}
+        actionState={actionState}
+        publishingActionState={publishingActionState}
+        deploymentState={deploymentState}
+        onPublishEntry={publishEntry}
+        onUpdateDraft={updateDraft}
+        onUpdateFieldValue={updateFieldValue}
+        onStageImageFiles={stageImageFiles}
+        onInsertImageMarkdown={insertImageMarkdown}
+        onRemoveImage={removeImage}
+        outputPanel={renderOutputPanel()}
+        collectionsPanel={renderCollectionsPanel()}
+        sessionPanel={renderSessionPanel()}
+      />
+    );
+  }
+
+  function renderNewTypeView() {
+    return (
+      <DashboardNewTypeView
+        typeDraft={typeDraft}
+        actionState={actionState}
+        publishingActionState={publishingActionState}
+        deploymentState={deploymentState}
+        onChangeTypeDraft={setTypeDraft}
+        onAddTypeField={addTypeField}
+        onUpdateTypeField={updateTypeField}
+        onRemoveTypeField={removeTypeField}
+        onCreateContentType={createContentType}
+        collectionsPanel={renderCollectionsPanel()}
+        sessionPanel={renderSessionPanel()}
+      />
+    );
+  }
+
+  function renderCollectionsPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-mono text-lg font-normal text-zinc-50">Content types</h2>
+            <p className="mt-1 text-xs text-zinc-500">{collectionsState.message || "Ready"}</p>
+          </div>
+          <Button type="button" variant="ghost" size="icon" onClick={refreshCollections}>
+            <RefreshCw />
+            <span className="sr-only">Refresh types</span>
+          </Button>
+        </div>
+        <div className="grid gap-2">
+          {collections.map((collection) => (
+            <button
+              key={collection.id}
+              type="button"
+              onClick={() => selectCollection(collection.id)}
+              className={`w-full border px-3 py-2 text-left transition-colors ${
+                selectedCollection.id === collection.id && routeState.view !== "overview"
+                  ? "border-zinc-100 bg-zinc-950"
+                  : "border-zinc-900 hover:border-zinc-700"
+              }`}
             >
-              {collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.pluralLabel}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button asChild variant="outline">
+              <span className="flex items-start gap-2">
+                <FileText className="mt-0.5 size-4 shrink-0 text-zinc-500" />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-zinc-50">{collection.pluralLabel}</span>
+                  <span className="mt-1 block truncate font-mono text-xs text-zinc-500">/{collection.route}</span>
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderSessionPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Session</h2>
+        <dl className="mb-4 space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">GitHub</dt>
+            <dd className="break-all font-mono text-zinc-100">@{signedInAuth.user.login}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Access</dt>
+            <dd className="text-zinc-100">Write enabled</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Types</dt>
+            <dd className="text-zinc-100">{collectionsState.message || "Ready"}</dd>
+          </div>
+        </dl>
+        <div className="grid gap-2">
+          <Button asChild variant="outline" className="w-full">
             <a href={tokenUrl} target="_blank" rel="noreferrer">
               <KeyRound />
               Token
               <ExternalLink />
             </a>
           </Button>
-          <Button onClick={publishEntry} disabled={actionState.kind === "working"}>
-            <Send />
-            Publish
+          <Button type="button" variant="outline" className="w-full" onClick={refreshCollections}>
+            <RefreshCw />
+            Refresh types
+          </Button>
+          <Button type="button" variant="outline" className="w-full" onClick={signOut}>
+            <LogOut />
+            Sign out
           </Button>
         </div>
-      </header>
-
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-6">
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Title</span>
-                <input
-                  value={draft.title}
-                  onChange={(event) => updateDraft("title", event.target.value)}
-                  className={baseInputClass}
-                  placeholder={`${selectedCollection.label} title`}
-                />
-              </label>
-
-              <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Description</span>
-                <textarea
-                  value={draft.description}
-                  onChange={(event) => updateDraft("description", event.target.value)}
-                  rows={3}
-                  className={textareaClass}
-                  placeholder="Short summary for listings and metadata."
-                />
-              </label>
-
-              {selectedCollection.fields.map((field) => (
-                <FieldInput
-                  key={field.name}
-                  field={field}
-                  value={draft.fieldValues[field.name] ?? defaultFieldValue(field)}
-                  onChange={(value) => updateFieldValue(field, value)}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">
-                {selectedCollection.bodyLabel ?? "Body"}
-              </h2>
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium transition hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">
-                <ImagePlus className="size-4" />
-                Add images
-                <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageSelection} />
-              </label>
-            </div>
-            <textarea
-              ref={bodyRef}
-              value={draft.body}
-              onChange={(event) => updateDraft("body", event.target.value)}
-              rows={18}
-              className="min-h-[420px] w-full resize-y rounded-md border border-zinc-300 bg-background px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-zinc-500 focus:ring-2 focus:ring-zinc-300 dark:border-zinc-700 dark:focus:border-zinc-400 dark:focus:ring-zinc-700"
-              placeholder={selectedCollection.bodyPlaceholder ?? "Write in Markdown."}
-            />
-          </section>
-
-          {images.length > 0 ? (
-            <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
-              <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Images</h2>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {images.map((image) => (
-                  <div key={image.id} className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={image.previewUrl} alt="" className="aspect-video w-full object-cover" />
-                    <div className="space-y-3 p-3">
-                      <p className="truncate font-mono text-xs text-zinc-600 dark:text-zinc-400">{image.safeName}</p>
-                      <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => insertImageMarkdown(image)}>
-                          <ImagePlus />
-                          Insert
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeImage(image.id)}>
-                          <Trash2 />
-                          <span className="sr-only">Remove image</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800 md:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-50">New content type</h2>
-              <Button type="button" variant="outline" size="sm" onClick={() => addTypeField()}>
-                <Plus />
-                Field
-              </Button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Singular label</span>
-                <input
-                  value={typeDraft.label}
-                  onChange={(event) => setTypeDraft((current) => ({ ...current, label: event.target.value }))}
-                  className={baseInputClass}
-                  placeholder="Reseña"
-                />
-              </label>
-
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Plural label</span>
-                <input
-                  value={typeDraft.pluralLabel}
-                  onChange={(event) => setTypeDraft((current) => ({ ...current, pluralLabel: event.target.value }))}
-                  className={baseInputClass}
-                  placeholder="Reseñas"
-                />
-              </label>
-
-              <label className="flex flex-col gap-2 md:col-span-2">
-                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Description</span>
-                <textarea
-                  value={typeDraft.description}
-                  onChange={(event) => setTypeDraft((current) => ({ ...current, description: event.target.value }))}
-                  rows={2}
-                  className={textareaClass}
-                  placeholder="Short summary for the collection page."
-                />
-              </label>
-            </div>
-
-            {typeDraft.fields.length > 0 ? (
-              <div className="mt-5 space-y-3">
-                {typeDraft.fields.map((field) => (
-                  <NewFieldEditor
-                    key={field.id}
-                    field={field}
-                    onChange={(nextField) => updateTypeField(field.id, nextField)}
-                    onRemove={() => removeTypeField(field.id)}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => addTypeField()}>
-                <ListPlus />
-                Add field
-              </Button>
-              <Button type="button" onClick={createContentType} disabled={actionState.kind === "working"}>
-                <FileText />
-                Create type
-              </Button>
-            </div>
-          </section>
-        </div>
-
-        <aside className="space-y-6">
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Session</h2>
-            <dl className="mb-4 space-y-3 text-sm">
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">GitHub</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">@{auth.user.login}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Access</dt>
-                <dd className="text-zinc-900 dark:text-zinc-100">Write enabled</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Types</dt>
-                <dd className="text-zinc-900 dark:text-zinc-100">{collectionsState.message || "Ready"}</dd>
-              </div>
-            </dl>
-            <div className="grid gap-2">
-              <Button type="button" variant="outline" className="w-full" onClick={refreshCollections}>
-                <RefreshCw />
-                Refresh types
-              </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={signOut}>
-                <LogOut />
-                Sign out
-              </Button>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">Output</h2>
-            <dl className="space-y-3 text-sm">
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Repository</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepositoryFullName}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Branch</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{writerRepository.branch}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Type</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{selectedCollection.id}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Route</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">/{selectedCollection.route}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Slug</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{slug || "entry-title"}</dd>
-              </div>
-              <div>
-                <dt className="text-zinc-500 dark:text-zinc-400">Path</dt>
-                <dd className="break-all font-mono text-zinc-900 dark:text-zinc-100">{entryPath}</dd>
-              </div>
-              {selectedTags.length > 0 ? (
-                <div>
-                  <dt className="text-zinc-500 dark:text-zinc-400">Tags</dt>
-                  <dd className="text-zinc-900 dark:text-zinc-100">{selectedTags.join(", ")}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </section>
-
-          <section className="rounded-lg border border-zinc-200 bg-background p-4 dark:border-zinc-800">
-            <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">MDX</h2>
-            <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md bg-zinc-100 p-3 font-mono text-xs leading-5 text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-              {mdx}
-            </pre>
-          </section>
-
-          {actionState.message ? (
-            <section
-              className={`rounded-lg border p-4 text-sm ${
-                actionState.kind === "error"
-                  ? "border-red-300 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
-                  : "border-zinc-200 bg-background text-zinc-800 dark:border-zinc-800 dark:text-zinc-200"
-              }`}
-            >
-              <p>{actionState.message}</p>
-              {actionState.href ? (
-                <Link href={actionState.href} target="_blank" className="mt-2 inline-flex items-center gap-1 underline">
-                  View commit
-                  <ExternalLink className="size-3" />
-                </Link>
-              ) : null}
-            </section>
-          ) : null}
-        </aside>
       </section>
-    </main>
-  );
+    );
+  }
+
+  function renderRepositoryPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Repository</h2>
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Name</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Workflow</dt>
+            <dd className="text-zinc-100">{siteConfig.writer.deployment.workflowName}</dd>
+          </div>
+        </dl>
+      </section>
+    );
+  }
+
+  function renderOutputPanel() {
+    return (
+      <section className="border border-zinc-900 bg-black p-4">
+        <h2 className="mb-4 font-mono text-lg font-normal text-zinc-50">Output</h2>
+        <dl className="space-y-3 text-sm">
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Repository</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepositoryFullName}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Branch</dt>
+            <dd className="break-all font-mono text-zinc-100">{writerRepository.branch}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Type</dt>
+            <dd className="break-all font-mono text-zinc-100">{selectedCollection.id}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Mode</dt>
+            <dd className="break-all font-mono text-zinc-100">{isEditing ? "edit" : "new"}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Route</dt>
+            <dd className="break-all font-mono text-zinc-100">/{selectedCollection.route}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Slug</dt>
+            <dd className="break-all font-mono text-zinc-100">{outputSlug}</dd>
+          </div>
+          <div>
+            <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Path</dt>
+            <dd className="break-all font-mono text-zinc-100">{entryPath}</dd>
+          </div>
+          {selectedTags.length > 0 ? (
+            <div>
+              <dt className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">Tags</dt>
+              <dd className="text-zinc-100">{selectedTags.join(", ")}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </section>
+    );
+  }
 
   function addTypeField() {
     setTypeDraft((current) => ({
@@ -775,532 +1132,4 @@ export default function DashboardPage() {
       fields: current.fields.filter((field) => field.id !== id),
     }));
   }
-}
-
-function FieldInput({
-  field,
-  value,
-  onChange,
-}: {
-  field: ContentFieldDefinition;
-  value: FieldDraftValue;
-  onChange: (value: FieldDraftValue) => void;
-}) {
-  if (field.type === "boolean") {
-    return (
-      <label className="flex min-h-11 items-center gap-3 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
-        <input
-          type="checkbox"
-          checked={Boolean(value)}
-          onChange={(event) => onChange(event.target.checked)}
-          className="size-4 rounded border-zinc-300"
-        />
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{field.label}</span>
-      </label>
-    );
-  }
-
-  if (field.type === "textarea") {
-    return (
-      <label className="flex flex-col gap-2 md:col-span-2">
-        <FieldLabel field={field} />
-        <textarea
-          value={String(value)}
-          onChange={(event) => onChange(event.target.value)}
-          rows={3}
-          className={textareaClass}
-          placeholder={field.placeholder}
-        />
-      </label>
-    );
-  }
-
-  if (field.type === "select") {
-    return (
-      <label className="flex flex-col gap-2">
-        <FieldLabel field={field} />
-        <select value={String(value)} onChange={(event) => onChange(event.target.value)} className={baseInputClass}>
-          <option value="">Select...</option>
-          {(field.options ?? []).map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
-  }
-
-  return (
-    <label className="flex flex-col gap-2">
-      <FieldLabel field={field} />
-      <input
-        type={field.type === "date" ? "date" : "text"}
-        value={String(value)}
-        onChange={(event) => onChange(event.target.value)}
-        className={baseInputClass}
-        placeholder={field.placeholder}
-      />
-    </label>
-  );
-}
-
-function FieldLabel({ field }: { field: ContentFieldDefinition }) {
-  return (
-    <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-      {field.label}
-      {field.required ? <span className="text-red-600 dark:text-red-400"> *</span> : null}
-    </span>
-  );
-}
-
-function NewFieldEditor({
-  field,
-  onChange,
-  onRemove,
-}: {
-  field: NewFieldDraft;
-  onChange: (field: NewFieldDraft) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="grid gap-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800 md:grid-cols-[minmax(0,1fr)_160px_auto]">
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Field label</span>
-        <input
-          value={field.label}
-          onChange={(event) => onChange({ ...field, label: event.target.value })}
-          className={baseInputClass}
-          placeholder="Rating"
-        />
-      </label>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Type</span>
-        <select
-          value={field.type}
-          onChange={(event) => onChange({ ...field, type: event.target.value as ContentFieldType })}
-          className={baseInputClass}
-        >
-          {contentFieldTypes.map((fieldType) => (
-            <option key={fieldType} value={fieldType}>
-              {fieldType}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="flex items-end gap-2">
-        <label className="flex h-11 items-center gap-2 rounded-md border border-zinc-300 px-3 dark:border-zinc-700">
-          <input
-            type="checkbox"
-            checked={field.required}
-            onChange={(event) => onChange({ ...field, required: event.target.checked })}
-            className="size-4 rounded border-zinc-300"
-          />
-          <span className="text-sm text-zinc-800 dark:text-zinc-200">Required</span>
-        </label>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove}>
-          <Trash2 />
-          <span className="sr-only">Remove field</span>
-        </Button>
-      </div>
-      <label className="flex flex-col gap-2 md:col-span-2">
-        <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Placeholder</span>
-        <input
-          value={field.placeholder}
-          onChange={(event) => onChange({ ...field, placeholder: event.target.value })}
-          className={baseInputClass}
-          placeholder="Optional"
-        />
-      </label>
-      {field.type === "select" ? (
-        <label className="flex flex-col gap-2 md:col-span-3">
-          <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Options</span>
-          <input
-            value={field.optionsInput}
-            onChange={(event) => onChange({ ...field, optionsInput: event.target.value })}
-            className={baseInputClass}
-            placeholder="Draft, Published, Archived"
-          />
-        </label>
-      ) : null}
-    </div>
-  );
-}
-
-function emptyEntryDraft(collection: CollectionDefinition): EntryDraft {
-  return {
-    title: "",
-    description: "",
-    fieldValues: Object.fromEntries(collection.fields.map((field) => [field.name, defaultFieldValue(field)])),
-    body: "",
-  };
-}
-
-function defaultFieldValue(field: ContentFieldDefinition): FieldDraftValue {
-  if (field.type === "boolean") {
-    return false;
-  }
-
-  if (field.type === "date") {
-    return new Date().toISOString().slice(0, 10);
-  }
-
-  return "";
-}
-
-function parseStoredDraft(rawDraft: string, collection: CollectionDefinition) {
-  try {
-    const parsed = JSON.parse(rawDraft) as Partial<EntryDraft>;
-    const fallback = emptyEntryDraft(collection);
-    const parsedFieldValues = parsed.fieldValues && typeof parsed.fieldValues === "object" ? parsed.fieldValues : {};
-
-    return {
-      title: typeof parsed.title === "string" ? parsed.title : "",
-      description: typeof parsed.description === "string" ? parsed.description : "",
-      body: typeof parsed.body === "string" ? parsed.body : "",
-      fieldValues: {
-        ...fallback.fieldValues,
-        ...parsedFieldValues,
-      },
-    };
-  } catch {
-    window.localStorage.removeItem(draftStorageKey(collection.id));
-    return emptyEntryDraft(collection);
-  }
-}
-
-function draftStorageKey(collectionId: string) {
-  return `${writerStorage.draftKey}:${collectionId}`;
-}
-
-function buildMdx(collection: CollectionDefinition, draft: EntryDraft) {
-  const frontmatterEntries: Array<[string, unknown]> = [
-    ["title", draft.title.trim()],
-    ["description", draft.description.trim()],
-    ...collection.fields.map((field): [string, unknown] => [field.name, parseFieldValue(field, draft.fieldValues[field.name])]),
-  ];
-
-  return `---\n${frontmatterEntries
-    .filter(([, value]) => !isEmptyFrontmatterValue(value))
-    .map(([key, value]) => `${key}: ${serializeFrontmatterValue(value)}`)
-    .join("\n")}\n---\n\n${draft.body.trim()}\n`;
-}
-
-function parseFieldValue(field: ContentFieldDefinition, value: FieldDraftValue | undefined) {
-  if (field.type === "boolean") {
-    return Boolean(value);
-  }
-
-  if (field.type === "list" || field.type === "tags") {
-    return parseListInput(String(value ?? ""));
-  }
-
-  return String(value ?? "").trim();
-}
-
-function serializeFrontmatterValue(value: unknown) {
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => JSON.stringify(item)).join(", ")}]`;
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "true" : "false";
-  }
-
-  return JSON.stringify(value);
-}
-
-function isEmptyFrontmatterValue(value: unknown) {
-  return value === "" || (Array.isArray(value) && value.length === 0);
-}
-
-function validateEntryDraft(collection: CollectionDefinition, draft: EntryDraft, slug: string, token: string) {
-  if (!token.trim()) {
-    throw new Error("Add a GitHub token before publishing.");
-  }
-
-  if (!draft.title.trim()) {
-    throw new Error("Add a title before publishing.");
-  }
-
-  if (!slug) {
-    throw new Error("The title needs at least one letter or number for the URL slug.");
-  }
-
-  if (!draft.description.trim()) {
-    throw new Error("Add a description before publishing.");
-  }
-
-  for (const field of collection.fields) {
-    const value = parseFieldValue(field, draft.fieldValues[field.name]);
-
-    if (field.required && isEmptyFrontmatterValue(value)) {
-      throw new Error(`Add ${field.label.toLowerCase()} before publishing.`);
-    }
-  }
-
-  if (!draft.body.trim()) {
-    throw new Error("Write the body before publishing.");
-  }
-}
-
-function buildCollectionDefinition(typeDraft: TypeDraft, existingCollections: CollectionDefinition[]) {
-  const label = typeDraft.label.trim();
-  const pluralLabel = typeDraft.pluralLabel.trim();
-  const route = normalizeContentSegment(pluralLabel || label);
-
-  if (!label) {
-    throw new Error("Add a singular label for the content type.");
-  }
-
-  if (!pluralLabel) {
-    throw new Error("Add a plural label for the content type.");
-  }
-
-  if (!route || !isSafeContentSegment(route)) {
-    throw new Error("The plural label needs at least one letter or number for the route.");
-  }
-
-  if (isReservedCollectionRoute(route)) {
-    throw new Error(`/${route} is reserved. Choose a different plural label.`);
-  }
-
-  if (existingCollections.some((collection) => collection.id === route || collection.route === route)) {
-    throw new Error(`A content type already uses ${route}.`);
-  }
-
-  const fields = typeDraft.fields.map((field) => buildFieldDefinition(field));
-  const seenFieldNames = new Set<string>();
-
-  for (const field of fields) {
-    if (seenFieldNames.has(field.name)) {
-      throw new Error(`Field "${field.label}" creates a duplicate frontmatter key.`);
-    }
-
-    seenFieldNames.add(field.name);
-  }
-
-  return normalizeCollectionDefinition({
-    id: route,
-    label,
-    pluralLabel,
-    description: typeDraft.description.trim(),
-    route,
-    bodyLabel: "Cuerpo",
-    bodyPlaceholder: "Escribe en Markdown.",
-    sort: fields.find((field) => field.type === "date") ? { field: fields.find((field) => field.type === "date")?.name, direction: "desc" } : undefined,
-    fields,
-  });
-}
-
-function buildFieldDefinition(field: NewFieldDraft): ContentFieldDefinition {
-  const label = field.label.trim();
-  const name = fieldNameFromLabel(label);
-
-  if (!label) {
-    throw new Error("Every custom field needs a label.");
-  }
-
-  if (!name || !isSafeFieldName(name)) {
-    throw new Error(`Field "${label}" needs a safe frontmatter key.`);
-  }
-
-  const options = parseListInput(field.optionsInput);
-
-  if (field.type === "select" && options.length === 0) {
-    throw new Error(`Field "${label}" needs at least one select option.`);
-  }
-
-  return {
-    name,
-    label,
-    type: field.type,
-    required: field.required,
-    placeholder: field.placeholder.trim() || undefined,
-    options: field.type === "select" ? options : undefined,
-  };
-}
-
-function getTagsForCollection(collection: CollectionDefinition, draft: EntryDraft) {
-  const tagsField = collection.fields.find((field) => field.type === "tags");
-
-  if (!tagsField) {
-    return [];
-  }
-
-  return parseListInput(String(draft.fieldValues[tagsField.name] ?? ""));
-}
-
-function parseListInput(value: string) {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-async function loadCollectionsFromGitHub(token: string) {
-  const response = await fetch(
-    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content?ref=${writerRepository.branch}`,
-    {
-      headers: githubHeaders(token),
-    },
-  );
-
-  if (response.status === 404) {
-    return [postCollectionDefinition];
-  }
-
-  if (!response.ok) {
-    throw new Error(await githubErrorMessage(response));
-  }
-
-  const items = (await response.json()) as GitHubContentItem[] | GitHubContentItem;
-
-  if (!Array.isArray(items)) {
-    return [postCollectionDefinition];
-  }
-
-  const definitions = (
-    await Promise.all(
-      items
-        .filter((item) => item.type === "dir" && item.name)
-        .map((item) => loadCollectionDefinitionFromGitHub(item.name as string, token)),
-    )
-  ).filter((definition): definition is CollectionDefinition => Boolean(definition));
-  const hasPosts = definitions.some((definition) => definition.id === postCollectionDefinition.id);
-
-  return orderCollectionDefinitions(hasPosts ? definitions : [postCollectionDefinition, ...definitions]);
-}
-
-async function loadCollectionDefinitionFromGitHub(id: string, token: string) {
-  const response = await fetch(
-    `https://api.github.com/repos/${writerRepositoryFullName}/contents/content/${encodeGitHubPath(id)}/_type.json?ref=${
-      writerRepository.branch
-    }`,
-    {
-      headers: githubHeaders(token),
-    },
-  );
-
-  if (response.status === 404) {
-    return undefined;
-  }
-
-  if (!response.ok) {
-    throw new Error(await githubErrorMessage(response));
-  }
-
-  const file = (await response.json()) as GitHubContentItem;
-
-  if (file.encoding !== "base64" || !file.content) {
-    return undefined;
-  }
-
-  return normalizeCollectionDefinition(JSON.parse(base64ToText(file.content)));
-}
-
-async function ensurePathIsNew(path: string, token: string) {
-  const response = await fetch(
-    `https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}?ref=${writerRepository.branch}`,
-    {
-      headers: githubHeaders(token),
-    },
-  );
-
-  if (response.status === 404) {
-    return;
-  }
-
-  if (response.ok) {
-    throw new Error(`A file already exists at ${path}. Change the title or type label.`);
-  }
-
-  throw new Error(await githubErrorMessage(response));
-}
-
-async function putFile({
-  path,
-  content,
-  message,
-  token,
-}: {
-  path: string;
-  content: string;
-  message: string;
-  token: string;
-}) {
-  const response = await fetch(`https://api.github.com/repos/${writerRepositoryFullName}/contents/${encodeGitHubPath(path)}`, {
-    method: "PUT",
-    headers: githubHeaders(token),
-    body: JSON.stringify({
-      message,
-      content,
-      branch: writerRepository.branch,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await githubErrorMessage(response));
-  }
-
-  return (await response.json()) as { commit: { html_url: string } };
-}
-
-function encodeGitHubPath(path: string) {
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
-function textToBase64(text: string) {
-  return bytesToBase64(new TextEncoder().encode(text));
-}
-
-async function fileToBase64(file: File) {
-  return bytesToBase64(new Uint8Array(await file.arrayBuffer()));
-}
-
-function bytesToBase64(bytes: Uint8Array) {
-  let binary = "";
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-
-  return btoa(binary);
-}
-
-function base64ToText(base64: string) {
-  const binary = atob(base64.replace(/\s/g, ""));
-  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
-}
-
-function sanitizeFileName(fileName: string) {
-  const parts = fileName.split(".");
-  const extension = parts.length > 1 ? parts.pop()?.toLowerCase() : "";
-  const baseName = normalizeContentSegment(parts.join(".") || "image") || "image";
-
-  return extension ? `${baseName}.${extension}` : baseName;
-}
-
-function uniqueFileName(fileName: string, existingNames: Set<string>, index: number) {
-  const prefix = String(index).padStart(2, "0");
-  const parts = fileName.split(".");
-  const extension = parts.length > 1 ? `.${parts.pop()}` : "";
-  const baseName = parts.join(".") || "image";
-  let candidate = `${prefix}-${baseName}${extension}`;
-  let suffix = 2;
-
-  while (existingNames.has(candidate)) {
-    candidate = `${prefix}-${baseName}-${suffix}${extension}`;
-    suffix += 1;
-  }
-
-  return candidate;
-}
-
-function randomId() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
 }

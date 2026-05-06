@@ -49,15 +49,17 @@ export default async function CollectionPage({ params }: { params: Promise<{ col
     const blogPosts = await getPosts();
 
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-950">
+      <div className="min-h-screen bg-black">
         <main className="container mx-auto px-4 py-12">
-          <div className="max-w-4xl mr-auto">
+          <div className="mr-auto max-w-4xl">
             <header className="mb-12">
-              <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">{collection.pluralLabel}</h1>
-              <p className="text-xl text-zinc-700 dark:text-zinc-300">{collection.description}</p>
+              <h1 className="mb-4 font-mono text-4xl font-normal text-zinc-50 md:text-5xl">
+                {collection.pluralLabel}
+              </h1>
+              <p className="max-w-3xl text-lg leading-7 text-zinc-400">{collection.description}</p>
             </header>
 
-            <Suspense fallback={<div className="text-zinc-700 dark:text-zinc-300">Cargando artículos...</div>}>
+            <Suspense fallback={<div className="text-zinc-400">Cargando artículos...</div>}>
               <PostsList posts={blogPosts} />
             </Suspense>
           </div>
@@ -69,13 +71,15 @@ export default async function CollectionPage({ params }: { params: Promise<{ col
   const entries = await getCollectionEntries(collection.id);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-black">
       <main className="container mx-auto px-4 py-12">
-        <div className="max-w-4xl mr-auto">
+        <div className="mr-auto max-w-4xl">
           <header className="mb-12">
-            <h1 className="mb-4 text-zinc-900 dark:text-zinc-50">{collection.pluralLabel}</h1>
+            <h1 className="mb-4 font-mono text-4xl font-normal text-zinc-50 md:text-5xl">
+              {collection.pluralLabel}
+            </h1>
             {collection.description ? (
-              <p className="text-xl text-zinc-700 dark:text-zinc-300">{collection.description}</p>
+              <p className="max-w-3xl text-lg leading-7 text-zinc-400">{collection.description}</p>
             ) : null}
           </header>
 
@@ -86,8 +90,8 @@ export default async function CollectionPage({ params }: { params: Promise<{ col
               ))}
             </div>
           ) : (
-            <div className="border-b border-zinc-200 pb-12 dark:border-zinc-800">
-              <p className="text-zinc-700 dark:text-zinc-300">No hay entradas publicadas.</p>
+            <div className="border-b border-zinc-900 pb-12">
+              <p className="text-zinc-400">No hay entradas publicadas.</p>
             </div>
           )}
         </div>
@@ -101,18 +105,22 @@ function CollectionEntryPreview({ entry }: { entry: ContentSummary }) {
   const tags = getTagsValue(entry);
 
   return (
-    <article className="border-b border-zinc-200 pb-12 last:border-0 dark:border-zinc-800">
+    <article className="border-b border-zinc-900 pb-12 last:border-0">
       <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1">
-        {date ? <time className="text-sm text-zinc-500 dark:text-zinc-400">{formatDate(date)}</time> : null}
-        {date && tags.length > 0 ? <span className="text-zinc-300 dark:text-zinc-600">•</span> : null}
-        {tags[0] ? <span className="text-sm text-zinc-500 dark:text-zinc-400">{tags[0]}</span> : null}
+        {date ? (
+          <time className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">{formatDate(date)}</time>
+        ) : null}
+        {date && tags.length > 0 ? <span className="text-zinc-700">/</span> : null}
+        {tags[0] ? (
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">{tags[0]}</span>
+        ) : null}
       </div>
-      <h2 className="mb-3 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-        <Link href={`/${entry.collection.route}/${entry.slug}`} className="hover:underline">
+      <h2 className="mb-3 font-mono text-2xl font-normal text-zinc-50">
+        <Link href={`/${entry.collection.route}/${entry.slug}`} className="transition-colors hover:text-[#c3d9f3]">
           {entry.frontmatter.title}
         </Link>
       </h2>
-      <p className="mb-4 text-zinc-700 dark:text-zinc-300">{entry.frontmatter.description}</p>
+      <p className="mb-4 leading-7 text-zinc-400">{entry.frontmatter.description}</p>
       {tags.length > 0 ? (
         <div className="mb-4 flex flex-wrap gap-2">
           {tags.map((tag) => (
@@ -122,7 +130,7 @@ function CollectionEntryPreview({ entry }: { entry: ContentSummary }) {
       ) : null}
       <Link
         href={`/${entry.collection.route}/${entry.slug}`}
-        className="inline-flex items-center font-medium text-zinc-900 hover:underline dark:text-zinc-100"
+        className="inline-flex items-center font-mono text-xs uppercase tracking-[0.18em] text-[#c3d9f3] hover:underline"
       >
         Leer entrada completa
       </Link>

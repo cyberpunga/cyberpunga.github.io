@@ -1,0 +1,49 @@
+{
+  "id": "answers",
+  "label": "Respuesta",
+  "pluralLabel": "Respuestas",
+  "description": "Respuestas a preguntas, convocatorias y mensajes de la comunidad.",
+  "route": "respuestas",
+  "bodyLabel": "Respuesta",
+  "bodyPlaceholder": "Escribe la respuesta en Markdown.",
+  "sort": {
+    "field": "date",
+    "direction": "desc"
+  },
+  "fields": [
+    {
+      "name": "date",
+      "label": "Fecha",
+      "type": "date",
+      "required": true
+    },
+    {
+      "name": "question",
+      "label": "Pregunta",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Copia la pregunta o el mensaje original."
+    },
+    {
+      "name": "asker",
+      "label": "Persona que pregunta",
+      "type": "text",
+      "required": false,
+      "placeholder": "@usuario o anónimo"
+    },
+    {
+      "name": "ask_url",
+      "label": "URL de la pregunta",
+      "type": "text",
+      "required": false,
+      "placeholder": "https://..."
+    },
+    {
+      "name": "tags",
+      "label": "Tags",
+      "type": "tags",
+      "required": false,
+      "placeholder": "preguntas, comunidad"
+    }
+  ]
+}
